@@ -2,10 +2,12 @@ import { planRebalance } from "./rebalance.mjs";
 const cors = o => ({ "Access-Control-Allow-Origin": o, "Access-Control-Allow-Methods": "GET,POST,OPTIONS", "Access-Control-Allow-Headers": "content-type,x-access-token", "Access-Control-Max-Age": "86400" });
 const json = (obj, status, o) => new Response(JSON.stringify(obj), { status: status || 200, headers: { "content-type": "application/json", ...cors(o) } });
 async function alpaca(env, path, method = "GET", body) {
-  const base = env.ALPACA_BASE || "https://paper-api.alpaca.markets";
-  const r = await fetch(base + path, { method, headers: { "APCA-API-KEY-ID": env.ALPACA_KEY, "APCA-API-SECRET-KEY": env.ALPACA_SECRET, "content-type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
+  const base = (env.ALPACA_BASE || "https://paper-api.alpaca.markets").replace(/\/$/, "");
+  const headers = { "APCA-API-KEY-ID": (env.ALPACA_KEY || "").trim(), "APCA-API-SECRET-KEY": (env.ALPACA_SECRET || "").trim() };
+  if (body) headers["content-type"] = "application/json";
+  const r = await fetch(base + path, { method, headers, body: body ? JSON.stringify(body) : undefined });
   const txt = await r.text(); let j; try { j = txt ? JSON.parse(txt) : {}; } catch (e) { j = { raw: txt }; }
-  if (!r.ok) throw new Error((j && j.message) || ("Alpaca " + r.status));
+  if (!r.ok) { const d = (j && j.message) ? j.message : (typeof j === "string" ? j : JSON.stringify(j)); throw new Error("Alpaca " + r.status + " on " + path.split("?")[0] + ": " + String(d).slice(0, 240)); }
   return j;
 }
 export default {
@@ -18,9 +20,9 @@ export default {
       if (url.pathname === "/health") return json({ ok: true }, 200, o);
       if (url.pathname === "/account") {
         const acct = await alpaca(env, "/v2/account");
-        const positions = await alpaca(env, "/v2/positions");
+        let positions = []; try { positions = await alpaca(env, "/v2/positions"); } catch (e) {}
         let history = null;
-        try { const h = await alpaca(env, "/v2/account/portfolio/history?period=3M&timeframe=1D&extended_hours=false"); history = { timestamp: h.timestamp, equity: h.equity }; } catch (e) {}
+        try { const h = await alpaca(env, "/v2/account/portfolio/history?period=1M&timeframe=1D"); history = { timestamp: h.timestamp, equity: h.equity }; } catch (e) { history = { error: String(e.message || e) }; }
         return json({ equity: +acct.equity, last_equity: +acct.last_equity, cash: +acct.cash, buying_power: +acct.buying_power, status: acct.status,
           positions: positions.map(p => ({ symbol: p.symbol, qty: +p.qty, market_value: +p.market_value, avg_entry: +p.avg_entry_price, price: +p.current_price, unrealized_pl: +p.unrealized_pl, unrealized_plpc: +p.unrealized_plpc })), history }, 200, o);
       }
@@ -29,7 +31,7 @@ export default {
         const targets = (body.targets || []).filter(t => t.symbol && t.weight > 0.0005);
         if (!targets.length) return json({ error: "no targets" }, 400, o);
         const acct = await alpaca(env, "/v2/account");
-        const positions = await alpaca(env, "/v2/positions");
+        let positions = []; try { positions = await alpaca(env, "/v2/positions"); } catch (e) {}
         const posMap = {}; positions.forEach(p => posMap[p.symbol] = +p.market_value);
         const equity = +acct.equity;
         const plan = planRebalance(equity, posMap, targets);

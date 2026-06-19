@@ -35,6 +35,10 @@ body.dark table.cmp tr:hover td{ background:#1f2a40; }
 body.dark .cell-best{ background:#0e2c22; color:#6ee7b7; }
 body.dark .cell-worst{ background:#3a1620; color:#fca5a5; }
 body.dark code{ background:#1b2436; }
+body.dark .ctl label{ color:#cbd5e1; }
+body.dark .summary, body.dark .callout{ color:#cbd5e1; }
+body.dark .callout.warn{ color:#e7d9a8; }
+body.dark .summary{ background:#141c2b; }
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
 h1,h2,h3{margin:0;font-weight:650;letter-spacing:-.01em}
@@ -599,7 +603,7 @@ details summary{cursor:pointer;font-weight:600;font-size:12.5px;color:var(--acce
     if (lastRun) renderChart(currentChartType);
   }
 
-  const PALETTE = ["#0f172a", "#0ea5e9", "#d97706", "#7c3aed", "#db2777", "#0d9488", "#65a30d"];
+  const PALETTE = ["#6366f1", "#0ea5e9", "#d97706", "#7c3aed", "#db2777", "#0d9488", "#65a30d"];
   const DEFAULTS = {
     initialCapital: 100000, startDate: D.dates[0], endDate: D.dates[D.dates.length - 1],
     enginePct: 70, anchorKey: "jepq", anchorYield: (AINFO.jepq ? AINFO.jepq.yield_ : 10),
@@ -628,6 +632,7 @@ details summary{cursor:pointer;font-weight:600;font-size:12.5px;color:var(--acce
   let compare = { qqq: true, tqqq: true, ver: {} };
   let chart = null, currentChartType = "equity";
   let lastRun = null;
+  let storageBlocked = false;
 
   const pct = (x, d = 2) => (x == null || isNaN(x)) ? "&mdash;" : (x * 100).toFixed(d) + "%";
   const pct1 = x => pct(x, 1);
@@ -985,7 +990,7 @@ details summary{cursor:pointer;font-weight:600;font-size:12.5px;color:var(--acce
       const ctx = c.ctx, top = c.chartArea.top, bot = c.chartArea.bottom;
       ctx.save(); ctx.strokeStyle = "#94a3b8"; ctx.setLineDash([4, 4]); ctx.lineWidth = 1;
       ctx.beginPath(); ctx.moveTo(px, top); ctx.lineTo(px, bot); ctx.stroke();
-      ctx.setLineDash([]); ctx.fillStyle = "#64748b"; ctx.font = "10px sans-serif";
+      ctx.setLineDash([]); ctx.fillStyle = cssVar("--tick"); ctx.font = "10px sans-serif";
       ctx.fillText("← " + ALABEL(ak) + " proxy", px - 78, top + 11); ctx.fillText("real →", px + 4, top + 11);
       ctx.restore();
     }
@@ -1161,13 +1166,16 @@ details summary{cursor:pointer;font-weight:600;font-size:12.5px;color:var(--acce
 
   function renderVersionChips() {
     $("versionChips").innerHTML = (versions.length ? "" : `<span class="hint">No saved versions yet — tweak the strategy and click "Save as new". Click a saved chip to load &amp; edit it.</span>`) +
-      versions.map(v => `<span class="chip" style="${editingVersionId === v.id ? "outline:2px solid " + v.color : ""}"><span class="sw" style="background:${v.color}"></span><span data-load="${v.id}" style="cursor:pointer" title="load &amp; edit">${v.name}</span><button data-del="${v.id}" title="remove">&times;</button></span>`).join("");
+      versions.map(v => `<span class="chip" style="${editingVersionId === v.id ? "outline:2px solid " + v.color : ""}"><span class="sw" style="background:${v.color}"></span><span data-load="${v.id}" style="cursor:pointer" title="load &amp; edit">${v.name}</span><button data-del="${v.id}" title="remove">&times;</button></span>`).join("") +
+      (storageBlocked ? `<span class="hint" style="display:block;margin-top:8px;color:var(--amber)">Browser storage is blocked in this view, so saved versions won't survive a reload. Use &ldquo;Export all (.json)&rdquo; to keep them, then &ldquo;Import&rdquo; on the hosted site.</span>` : "");
     document.querySelectorAll("[data-load]").forEach(el => el.onclick = () => loadVersion(el.dataset.load));
     document.querySelectorAll("[data-del]").forEach(b => b.onclick = () => {
       versions = versions.filter(v => v.id !== b.dataset.del);
       if (editingVersionId === b.dataset.del) { editingVersionId = null; $("btnUpdate").style.display = "none"; }
       persist(); run();
     });
+    const cfgSel = $("cfgVerSel");
+    if (cfgSel) { const keep = cfgSel.value; cfgSel.innerHTML = cfgVerOptions(); if ([...cfgSel.options].some(o => o.value === keep)) cfgSel.value = keep; }
   }
   function loadVersion(id) {
     const v = versions.find(x => x.id === id); if (!v) return;
@@ -1190,8 +1198,9 @@ details summary{cursor:pointer;font-weight:600;font-size:12.5px;color:var(--acce
     v.params = readParams(); persist(); run(); setNL(`Updated "${v.name}".`);
   }
 
-  function persist() { try { localStorage.setItem("lrs_state_v4", JSON.stringify({ params: readParams(), versions, compare, editingVersionId })); } catch (e) {} }
+  function persist() { try { localStorage.setItem("lrs_state_v4", JSON.stringify({ params: readParams(), versions, compare, editingVersionId })); } catch (e) { storageBlocked = true; } }
   function restore() {
+    try { localStorage.setItem("lrs_probe", "1"); localStorage.removeItem("lrs_probe"); } catch (e) { storageBlocked = true; }
     try {
       let s = JSON.parse(localStorage.getItem("lrs_state_v4"));
       let migrated = false;
@@ -1278,11 +1287,13 @@ details summary{cursor:pointer;font-weight:600;font-size:12.5px;color:var(--acce
     w.document.write("<html><head><title>Strategy</title><style>body{font:13px/1.6 -apple-system,Segoe UI,Arial;max-width:760px;margin:24px auto;padding:0 16px;color:#161a22}h1{font-size:20px;margin:0}h2{font-size:14px;margin:16px 0 6px}table{border-collapse:collapse;width:100%}td{border:1px solid #e3e8ef;padding:5px 9px;font-size:12px;vertical-align:top}</style></head><body>" + html + "<scr" + "ipt>setTimeout(function(){window.print();},350);</scr" + "ipt></body></html>");
     w.document.close(); setNL("Opened a printable view - choose 'Save as PDF' in the print dialog.");
   }
-  function exportConfig() {
-    const blob = new Blob([JSON.stringify(readParams(), null, 2)], { type: "application/json" });
+  function exportConfig(p, label) {
+    p = (p && p.enginePct != null) ? p : readParams();
+    const blob = new Blob([JSON.stringify(p, null, 2)], { type: "application/json" });
     const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "strategy_config.json"; a.click();
-    setNL("Exported strategy_config.json — commit it to your repo so the alert workflow uses these exact parameters.");
+    setNL('Exported strategy_config.json' + (label ? ' for the saved version "' + label + '"' : ' (current controls)') + " — commit it to alerts/ in your repo so the alert workflow monitors these exact parameters.");
   }
+  function cfgVerOptions() { return ['<option value="__current">Current (live controls)</option>'].concat(versions.map(v => `<option value="${v.id}">${v.name}</option>`)).join(""); }
   function renderAlerts() {
     $("alertsHost").innerHTML =
       `<div class="callout">The dashboard runs <b>inside a sandbox</b> and cannot send messages itself. Live alerts run on <b>GitHub Actions</b>, which re-checks this exact signal logic on a schedule and emails/Telegrams you only when the target allocation changes.</div>
@@ -1296,8 +1307,14 @@ details summary{cursor:pointer;font-weight:600;font-size:12.5px;color:var(--acce
 State: Weakness (score 0.30)
 TQQQ 55% | SQQQ 15% | JEPQ 30%
 (was TQQQ 70% | JEPQ 30%)</pre>
-      <button class="btn" id="btnExportCfg2">Export config for the alert script</button></div></div>`;
-    $("btnExportCfg2").onclick = exportConfig;
+      <div style="margin-top:8px"><b>Export a strategy for the alert script</b><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;align-items:center"><select id="cfgVerSel" style="min-width:200px;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);font:inherit"></select><button class="btn" id="btnExportCfg2">Export config for the alert script</button></div><div class="hint" style="margin-top:5px">The workflow watches one strategy at a time. Pick the current controls or any saved version.</div></div></div></div>`;
+    $("cfgVerSel").innerHTML = cfgVerOptions();
+    $("btnExportCfg2").onclick = () => {
+      const id = $("cfgVerSel").value;
+      if (id === "__current") return exportConfig();
+      const v = versions.find(x => x.id === id);
+      exportConfig(v ? { ...DEFAULTS, ...v.params } : null, v ? v.name : null);
+    };
   }
   let paperCfg = { url: "", token: "" }, paperChart = null;
   function loadPaperCfg() { try { const c = JSON.parse(localStorage.getItem("lrs_paper")); if (c) paperCfg = c; } catch (e) {} }
