@@ -1,0 +1,42 @@
+name: Strategy rebalance alerts
+
+# Friday 15:45 America/New_York. GitHub cron is UTC and ignores DST, so we list
+# both offsets; state.json de-dupes so you never get two alerts for one signal.
+on:
+  schedule:
+    - cron: "45 19 * * 5"   # 15:45 ET while EDT (UTC-4)
+    - cron: "45 20 * * 5"   # 15:45 ET while EST (UTC-5)
+  workflow_dispatch:         # manual "Run workflow" button (use to test)
+
+permissions:
+  contents: write            # lets the job commit alerts/state.json
+
+concurrency:
+  group: strategy-alerts
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Check signal & send alerts on change
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID:   ${{ secrets.TELEGRAM_CHAT_ID }}
+          SMTP_HOST:          ${{ secrets.SMTP_HOST }}
+          SMTP_PORT:          ${{ secrets.SMTP_PORT }}
+          SMTP_USER:          ${{ secrets.SMTP_USER }}
+          SMTP_PASS:          ${{ secrets.SMTP_PASS }}
+          ALERT_TO:           ${{ secrets.ALERT_TO }}
+        run: python alerts/check_signal.py
+      - name: Persist updated state
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add alerts/state.json || true
+          git diff --cached --quiet || git commit -m "Update signal state [skip ci]"
+          git push || true
