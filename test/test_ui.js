@@ -6,6 +6,7 @@ const errs = [];
 class StubChart { constructor() { StubChart.n++; } destroy() {} update() {} }
 StubChart.n = 0;
 const dom = new JSDOM(html, { runScripts: "dangerously", pretendToBeVisual: true, url: "https://test.local/", beforeParse(w) {
+  w.HTMLAnchorElement.prototype.click = function () {};
   w.Chart = StubChart; w.structuredClone = global.structuredClone; w.requestAnimationFrame = cb => setTimeout(cb, 0);
   w.HTMLCanvasElement.prototype.getContext = () => ({}); w.prompt = () => "vTest"; w.confirm = () => true; w.URL.createObjectURL = () => "blob:test"; w.URL.revokeObjectURL = () => {};
   w.addEventListener("error", e => errs.push(e.error && e.error.stack || e.message));
