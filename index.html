@@ -34,7 +34,7 @@ header.top{display:flex;align-items:center;justify-content:space-between;gap:16p
 .ctl label{color:#283042;font-size:12.5px}
 .ctl .hint{color:var(--muted);font-size:11px;font-weight:400}
 .ctl input[type=number],.ctl input[type=date],.ctl select{width:104px;padding:5px 7px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink);font:inherit;text-align:right}
-.ctl select{text-align:left}
+.ctl select{text-align:left;width:188px;padding-right:24px;text-overflow:ellipsis}
 .ctl input[type=range]{width:150px}
 .switch{display:inline-flex;align-items:center;gap:7px}
 .switch input{width:34px;height:18px;-webkit-appearance:none;appearance:none;background:#cbd5e1;border-radius:999px;position:relative;cursor:pointer;transition:.15s;outline:none}
@@ -99,7 +99,7 @@ details summary{cursor:pointer;font-weight:600;font-size:12.5px;color:var(--acce
   <header class="top">
     <div class="brand">
       <h1>Leveraged Rotation Strategy — Backtest & Signal Dashboard</h1>
-      <div class="sub">70% Engine (TQQQ/SQQQ) + 30% Anchor (JEPQ) · VIX safety &rarr; TLT · benchmarked vs QQQ &amp; TQQQ</div>
+      <div class="sub" id="subTitle">70% Engine (TQQQ/SQQQ) + 30% Anchor (JEPQ) · VIX safety &rarr; TLT · benchmarked vs QQQ &amp; TQQQ</div>
     </div>
     <div style="text-align:right">
       <span class="badge" id="dataBadge">data &hellip;</span>
@@ -133,9 +133,11 @@ details summary{cursor:pointer;font-weight:600;font-size:12.5px;color:var(--acce
       <div id="controlGroups"></div>
       <div class="btn-row">
         <button class="btn primary" id="btnRun">Run backtest</button>
-        <button class="btn" id="btnSave">Save as version</button>
+        <button class="btn" id="btnSave">Save as new</button>
+        <button class="btn" id="btnUpdate" style="display:none">Update version</button>
         <button class="btn ghost" id="btnReset">Reset</button>
       </div>
+      <div class="hint" id="runStamp" style="margin-top:8px;min-height:14px"></div>
     </div>
 
     <!-- RIGHT: RESULTS -->
@@ -177,6 +179,8 @@ details summary{cursor:pointer;font-weight:600;font-size:12.5px;color:var(--acce
       <!-- COMPARISON TABLE -->
       <div class="card pad">
         <div class="section-title">Metrics comparison &mdash; strategy vs benchmarks vs saved versions</div>
+        <div id="taxNote" class="callout" style="display:none;margin:0 0 10px"></div>
+        <div id="compareSel" class="legend-note" style="margin:0 0 10px"></div>
         <div class="scroll-x"><table class="cmp" id="cmpTable"></table></div>
         <div class="legend-note" style="margin-top:8px">Green = best in row, red = worst. Risk metrics (drawdown, volatility, VaR) treat the less-negative / lower value as better.</div>
       </div>
@@ -334,63 +338,133 @@ details summary{cursor:pointer;font-weight:600;font-size:12.5px;color:var(--acce
     ind.er = computeER(data.tqqq, p.erWindow || 10);
     const anchorSeries = anchorSeriesFor(data, p.anchorKey || "jepq");
     const anchorYield = (p.anchorYield != null ? p.anchorYield : p.jepqYield) || 0;
+    const lag = (p.executeTiming === "sameClose") ? 0 : (p.signalLagDays != null ? p.signalLagDays : 1);
+    const sameClose = (p.executeTiming === "sameClose");
+    const band = (p.rebalance === "signal") ? ((p.rebalanceBand != null ? p.rebalanceBand : 5) / 100) : 0;
+    const taxOn = (p.accountType === "taxable");
+    const stRate = (p.stRate != null ? p.stRate : 35) / 100;
+    const ltRate = (p.ltRate != null ? p.ltRate : 15) / 100;
+    const incRate = (p.incomeRate != null ? p.incomeRate : 35) / 100;
+
     let i0 = 0, i1 = N - 1;
     if (p.startDate) while (i0 < N && data.dates[i0] < p.startDate) i0++;
     if (p.endDate) { i1 = N - 1; while (i1 > 0 && data.dates[i1] > p.endDate) i1--; }
     const warm = Math.max(p.smaWindow, p.rsiWindow, p.volWindow, 2 * (p.adxWindow || 14), p.erWindow || 10) + 1;
-    i0 = Math.max(i0, warm, p.signalLagDays + 1);
+    i0 = Math.max(i0, warm, lag + 1);
     if (i0 >= i1) return { error: "Not enough data in the selected window." };
+
     const dailyFee = p.extraMgmtFeePct / 100 / 252;
     const dailyYield = anchorYield / 100 / 252;
     const bps = p.tradingCostBps / 10000;
+
     const dates = [], equity = [], wHist = [], hHist = [], rebalEvents = [];
     let rebalCount = 0, turnoverSum = 0, costSum = 0;
     let sqqqExpSum = 0, tltExpSum = 0, hedgedDays = 0, vetoDays = 0, safetyDays = 0, whipDays = 0;
+
+    const ASSETS = ["tqqq", "sqqq", "jepq", "tlt"];
+    const basis = { tqqq: 0, sqqq: 0, jepq: 0, tlt: 0 }, age = { tqqq: 0, sqqq: 0, jepq: 0, tlt: 0 };
+    let yrST = 0, yrLT = 0, yrInc = 0, stCarry = 0, ltCarry = 0, totTax = 0, totST = 0, totLT = 0, totInc = 0;
+    const yearTax = {}, yearEndV = {};
+
     let V = p.initialCapital;
-    let tw = targetWeights(Math.max(0, i0 - p.signalLagDays), ind, data, p);
+    let tw = targetWeights(Math.max(0, i0 - lag), ind, data, p);
     let hold = { tqqq: V * tw.tqqq, sqqq: V * tw.sqqq, jepq: V * tw.jepq, tlt: V * tw.tlt };
+    for (const a of ASSETS) { basis[a] = hold[a]; age[a] = 0; }
     let ptr = i0;
+
     function record() {
       dates.push(data.dates[ptr]); equity.push(V);
       const wv = { tqqq: hold.tqqq / V, sqqq: hold.sqqq / V, jepq: hold.jepq / V, tlt: hold.tlt / V };
       wHist.push(wv); sqqqExpSum += wv.sqqq; tltExpSum += wv.tlt;
       if (wv.sqqq > 0.001 || wv.tlt > 0.001) hedgedDays++;
     }
-    record();
-    rebalEvents.push({ date: data.dates[i0], ...tw }); hHist.push({ date: data.dates[i0], h: tw.h });
-    if (tw.vetoed) vetoDays++;
-    if (tw.safety) safetyDays++;
-    if (tw.whip) whipDays++;
-    for (let i = i0 + 1; i <= i1; i++) {
-      const boundary = (p.rebalance === "daily") ||
+    function buyAsset(a, amt) { const nv = hold[a] + amt; age[a] = nv > 1e-12 ? (hold[a] * age[a]) / nv : 0; basis[a] += amt; hold[a] = nv; }
+    function sellAsset(a, amt) {
+      if (hold[a] <= 1e-12) { hold[a] = 0; return; }
+      const f = Math.min(1, amt / hold[a]); const sb = basis[a] * f; const gain = amt - sb;
+      if (age[a] < 365) yrST += gain; else yrLT += gain;
+      basis[a] -= sb; hold[a] -= amt; if (hold[a] < 1e-9) hold[a] = 0;
+    }
+    function rebalanceTo(t, di) {
+      const cw = { tqqq: hold.tqqq / V, sqqq: hold.sqqq / V, jepq: hold.jepq / V, tlt: hold.tlt / V };
+      const turnover = Math.abs(t.tqqq - cw.tqqq) + Math.abs(t.sqqq - cw.sqqq) + Math.abs(t.jepq - cw.jepq) + Math.abs(t.tlt - cw.tlt);
+      const cost = V * turnover * bps; V -= cost; turnoverSum += turnover; costSum += cost; rebalCount++;
+      for (const a of ASSETS) { const target = V * t[a]; const d = target - hold[a]; if (d > 0) buyAsset(a, d); else if (d < 0) sellAsset(a, -d); }
+      tw = t; rebalEvents.push({ date: data.dates[di], ...t }); hHist.push({ date: data.dates[di], h: t.h });
+      if (t.vetoed) vetoDays++; if (t.safety) safetyDays++; if (t.whip) whipDays++;
+    }
+    function maybeRebalance(i, sigIdx) {
+      const periodic = (p.rebalance === "daily") ||
         (p.rebalance === "weekly" && weeklyBoundary(i, data.dates)) ||
         (p.rebalance === "monthly" && monthOf(data.dates[i]) !== monthOf(data.dates[i - 1]));
-      if (boundary) {
-        tw = targetWeights(Math.max(0, i - p.signalLagDays), ind, data, p);
-        const cw = { tqqq: hold.tqqq / V, sqqq: hold.sqqq / V, jepq: hold.jepq / V, tlt: hold.tlt / V };
-        const turnover = Math.abs(tw.tqqq - cw.tqqq) + Math.abs(tw.sqqq - cw.sqqq) + Math.abs(tw.jepq - cw.jepq) + Math.abs(tw.tlt - cw.tlt);
-        const cost = V * turnover * bps;
-        V -= cost; turnoverSum += turnover; costSum += cost; rebalCount++;
-        hold = { tqqq: V * tw.tqqq, sqqq: V * tw.sqqq, jepq: V * tw.jepq, tlt: V * tw.tlt };
-        rebalEvents.push({ date: data.dates[i], ...tw }); hHist.push({ date: data.dates[i], h: tw.h });
-        if (tw.vetoed) vetoDays++;
-        if (tw.safety) safetyDays++;
-        if (tw.whip) whipDays++;
-      }
+      const signalMode = (p.rebalance === "signal");
+      if (!periodic && !signalMode) return;
+      const t = targetWeights(Math.max(0, sigIdx), ind, data, p);
+      const cw = { tqqq: hold.tqqq / V, sqqq: hold.sqqq / V, jepq: hold.jepq / V, tlt: hold.tlt / V };
+      const drift = Math.abs(t.tqqq - cw.tqqq) + Math.abs(t.sqqq - cw.sqqq) + Math.abs(t.jepq - cw.jepq) + Math.abs(t.tlt - cw.tlt);
+      if (signalMode && drift <= band) return;
+      rebalanceTo(t, i);
+    }
+    function grow(i) {
       hold.tqqq *= data.tqqq[i] / data.tqqq[i - 1];
       hold.sqqq *= data.sqqq[i] / data.sqqq[i - 1];
       hold.tlt  *= data.tlt[i]  / data.tlt[i - 1];
+      for (const a of ASSETS) age[a] += 1;
       const totR = anchorSeries[i] / anchorSeries[i - 1] - 1;
-      if (p.jepqRouteIncome) { const priceR = totR - dailyYield; hold.jepq *= (1 + priceR); hold.tqqq += dailyYield * hold.jepq; }
-      else hold.jepq *= (1 + totR);
+      if (p.jepqRouteIncome) {
+        const priceR = totR - dailyYield; hold.jepq *= (1 + priceR);
+        const income = dailyYield * hold.jepq; yrInc += income; buyAsset("tqqq", income);
+      } else {
+        const pre = hold.jepq; hold.jepq *= (1 + totR);
+        const income = dailyYield * pre; yrInc += income; basis.jepq += income;
+      }
       if (dailyFee > 0) { hold.tqqq *= (1 - dailyFee); hold.sqqq *= (1 - dailyFee); hold.jepq *= (1 - dailyFee); hold.tlt *= (1 - dailyFee); }
       V = hold.tqqq + hold.sqqq + hold.jepq + hold.tlt;
+    }
+    function finalizeYear(y) {
+      const stNet = yrST + stCarry, ltNet = yrLT + ltCarry; let stTax = 0, ltTax = 0;
+      if (stNet < 0) stCarry = stNet; else { stTax = stNet * stRate; stCarry = 0; }
+      if (ltNet < 0) ltCarry = ltNet; else { ltTax = ltNet * ltRate; ltCarry = 0; }
+      const incTax = Math.max(0, yrInc) * incRate;
+      const tax = taxOn ? (stTax + ltTax + incTax) : 0;
+      yearTax[y] = (yearTax[y] || 0) + tax; yearEndV[y] = V;
+      totTax += tax; totST += Math.max(0, yrST); totLT += Math.max(0, yrLT); totInc += Math.max(0, yrInc);
+      yrST = 0; yrLT = 0; yrInc = 0;
+    }
+
+    record();
+    rebalEvents.push({ date: data.dates[i0], ...tw }); hHist.push({ date: data.dates[i0], h: tw.h });
+    if (tw.vetoed) vetoDays++; if (tw.safety) safetyDays++; if (tw.whip) whipDays++;
+
+    for (let i = i0 + 1; i <= i1; i++) {
+      if (sameClose) { grow(i); maybeRebalance(i, i); }
+      else { maybeRebalance(i, i - 1); grow(i); }
+      const y = yearOf(data.dates[i]);
+      const nextY = (i + 1 <= i1) ? yearOf(data.dates[i + 1]) : null;
+      if (nextY !== null && nextY !== y) finalizeYear(y);
       ptr = i; record();
     }
+    finalizeYear(yearOf(data.dates[i1]));
+
+    // after-tax equity (taxes deducted as a fraction at each year-end)
+    const effRate = {};
+    for (const y in yearTax) effRate[y] = yearEndV[y] > 0 ? yearTax[y] / yearEndV[y] : 0;
+    const equityAT = [equity[0]]; let vat = equity[0];
+    for (let k = 1; k < equity.length; k++) {
+      vat *= equity[k] / equity[k - 1];
+      const y = yearOf(dates[k]); const yn = (k + 1 < dates.length) ? yearOf(dates[k + 1]) : null;
+      if ((yn !== null && yn !== y) || k === equity.length - 1) vat *= (1 - (effRate[y] || 0));
+      equityAT.push(vat);
+    }
+
     const days = dates.length;
-    return { dates, equity, wHist, hHist, rebalEvents, ind, i0, i1, anchorKey: p.anchorKey || "jepq",
+    return {
+      dates, equity, equityAT, wHist, hHist, rebalEvents, ind, i0, i1, anchorKey: p.anchorKey || "jepq",
+      tax: { on: taxOn, total: totTax, stGains: totST, ltGains: totLT, income: totInc,
+             afterTaxFinal: equityAT[equityAT.length - 1], pctShortTerm: (totST + totLT) > 0 ? totST / (totST + totLT) : 0 },
       stats: { rebalCount, turnoverSum, costSum, avgSqqq: sqqqExpSum / days, avgTlt: tltExpSum / days,
-               pctHedged: hedgedDays / days, vetoDays, safetyDays, whipDays } };
+               pctHedged: hedgedDays / days, vetoDays, safetyDays, whipDays }
+    };
   }
 
   function buyHold(series, dates, refDates, initial) {
@@ -400,6 +474,15 @@ details summary{cursor:pointer;font-weight:600;font-size:12.5px;color:var(--acce
     const j = dates.indexOf(end);
     const base = series[i];
     for (; i <= j; i++) out.push(initial * series[i] / base);
+    return out;
+  }
+  // after-tax buy&hold: defer all gains to one terminal long-term sale
+  function buyHoldAfterTax(eq, p) {
+    if (p.accountType !== "taxable") return eq.slice();
+    const ltRate = (p.ltRate != null ? p.ltRate : 15) / 100;
+    const out = eq.slice();
+    const gain = eq[eq.length - 1] - eq[0];
+    if (gain > 0) out[out.length - 1] = eq[eq.length - 1] - gain * ltRate;
     return out;
   }
 
@@ -445,10 +528,12 @@ details summary{cursor:pointer;font-weight:600;font-size:12.5px;color:var(--acce
     }
     yrs[prevYear] = equity[n - 1] / startVal - 1;
     const yearVals = Object.values(yrs);
-    return { finalValue: equity[n - 1], totalReturn, cagr, volA, sharpe, sortino, maxDD, calmar,
+    return {
+      finalValue: equity[n - 1], totalReturn, cagr, volA, sharpe, sortino, maxDD, calmar,
       var95, cvar95, posDays, beta, alpha, corr, upCap, dnCap,
       bestDay: Math.max(...r), worstDay: Math.min(...r), bestYear: Math.max(...yearVals), worstYear: Math.min(...yearVals),
-      years, nDays: n, yearReturns: yrs, ddRecoveryDate: dates[worstEnd] };
+      years, nDays: n, yearReturns: yrs, ddRecoveryDate: dates[worstEnd]
+    };
   }
 
   function drawdownSeries(equity) {
@@ -459,7 +544,7 @@ details summary{cursor:pointer;font-weight:600;font-size:12.5px;color:var(--acce
   function seriesReturns(equity) { const r = []; for (let i = 1; i < equity.length; i++) r.push(equity[i] / equity[i - 1] - 1); return r; }
 
   const API = { mean, std, clip, percentile, dow, computeIndicators, computeADX, computeER,
-    lookupSqqqFrac, whipsawActive, targetWeights, anchorSeriesFor, runBacktest, buyHold, metrics, drawdownSeries, seriesReturns };
+    lookupSqqqFrac, whipsawActive, targetWeights, anchorSeriesFor, runBacktest, buyHold, buyHoldAfterTax, metrics, drawdownSeries, seriesReturns };
   if (typeof module !== "undefined" && module.exports) module.exports = API;
   root.Engine = API;
 })(typeof window !== "undefined" ? window : globalThis);
@@ -474,17 +559,16 @@ details summary{cursor:pointer;font-weight:600;font-size:12.5px;color:var(--acce
 
   const PALETTE = ["#0f172a", "#0ea5e9", "#d97706", "#7c3aed", "#db2777", "#0d9488", "#65a30d"];
   const DEFAULTS = {
-    initialCapital: 100000,
-    startDate: D.dates[0], endDate: D.dates[D.dates.length - 1],
-    enginePct: 70,
-    anchorKey: "jepq", anchorYield: (AINFO.jepq ? AINFO.jepq.yield_ : 10),
+    initialCapital: 100000, startDate: D.dates[0], endDate: D.dates[D.dates.length - 1],
+    enginePct: 70, anchorKey: "jepq", anchorYield: (AINFO.jepq ? AINFO.jepq.yield_ : 10),
     smaWindow: 50, volWindow: 20, volThresh: 60,
     rsiWindow: 14, rsiOverheat: 75, rsiOversold: 30,
     wTrend: 0.4, wVol: 0.3, wRsiHot: 0.3, wRsiCold: -0.3, vixThresh: 40,
     lookup: [{ h: 0, f: 0 }, { h: 0.3, f: 0.2143 }, { h: 0.4, f: 0.4 }, { h: 0.7, f: 0.7143 }, { h: 1, f: 1 }],
     vetoRsiOversold: true, safetySwitch: true, jepqRouteIncome: true,
     whipsaw: false, whipsawDetector: "both", adxWindow: 14, adxThresh: 20, erWindow: 10, erThresh: 0.30,
-    rebalance: "weekly", signalLagDays: 1,
+    rebalance: "weekly", executeTiming: "nextOpen", rebalanceBand: 5, signalLagDays: 1,
+    accountType: "taxable", stRate: 35, ltRate: 15, incomeRate: 35,
     tradingCostBps: 5, extraMgmtFeePct: 0, riskFreePct: 4.3
   };
   const RANGES = {
@@ -492,11 +576,14 @@ details summary{cursor:pointer;font-weight:600;font-size:12.5px;color:var(--acce
     rsiWindow: [2, 50], rsiOverheat: [50, 95], rsiOversold: [5, 50],
     wTrend: [0, 1], wVol: [0, 1], wRsiHot: [0, 1], wRsiCold: [-1, 0], vixThresh: [10, 90],
     adxWindow: [5, 50], adxThresh: [5, 50], erWindow: [3, 40], erThresh: [0, 1],
-    signalLagDays: [0, 5], tradingCostBps: [0, 50], extraMgmtFeePct: [0, 3], riskFreePct: [0, 10], initialCapital: [1000, 1e8]
+    rebalanceBand: [0, 50], stRate: [0, 60], ltRate: [0, 40], incomeRate: [0, 60],
+    tradingCostBps: [0, 50], extraMgmtFeePct: [0, 3], riskFreePct: [0, 10], initialCapital: [1000, 1e8]
   };
   let params = structuredClone(DEFAULTS);
   let prevAnchor = params.anchorKey;
   let versions = [];
+  let editingVersionId = null;
+  let compare = { qqq: true, tqqq: true, ver: {} };
   let chart = null, currentChartType = "equity";
   let lastRun = null;
 
@@ -507,17 +594,17 @@ details summary{cursor:pointer;font-weight:600;font-size:12.5px;color:var(--acce
   const moneyShort = x => {
     if (x == null || isNaN(x)) return "&mdash;";
     const a = Math.abs(x);
-    if (a >= 1e6) return "$" + (x / 1e6).toFixed(2) + "M";
-    if (a >= 1e3) return "$" + (x / 1e3).toFixed(0) + "k";
-    return "$" + x.toFixed(0);
+    if (a >= 1e6) return (x < 0 ? "-$" : "$") + (a / 1e6).toFixed(2) + "M";
+    if (a >= 1e3) return (x < 0 ? "-$" : "$") + (a / 1e3).toFixed(0) + "k";
+    return (x < 0 ? "-$" : "$") + a.toFixed(0);
   };
   const ANCHOR_KEYS = ["jepq", "jepi", "qyld", "schd", "bil", "adx"];
-  const ANCHOR_LABELS = {
-    jepq: "JEPQ — JPMorgan Nasdaq income", jepi: "JEPI — JPMorgan S&P income",
-    qyld: "QYLD — Nasdaq covered call", schd: "SCHD — dividend growth",
-    bil: "BIL — 1-3mo T-bills (cash)", adx: "ADX — Adams Diversified Equity"
-  };
+  const ANCHOR_LABELS = { jepq: "JEPQ — JPMorgan Nasdaq income", jepi: "JEPI — JPMorgan S&P income",
+    qyld: "QYLD — Nasdaq covered call", schd: "SCHD — dividend growth", bil: "BIL — 1-3mo T-bills (cash)", adx: "ADX — Adams Diversified Equity" };
   const DET_LABELS = { both: "ADX & ER (both, selective)", either: "ADX or ER (either)", adx: "ADX only", er: "Efficiency Ratio only" };
+  const REBAL_LABELS = { weekly: "Weekly (Fri→Mon)", monthly: "Monthly", daily: "Daily", signal: "Signal-driven (daily eval, trade on drift)" };
+  const TIMING_LABELS = { nextOpen: "Next day's open", sameClose: "Same day, ~15m before close" };
+  const ACCT_LABELS = { taxable: "Taxable (brokerage)", taxAdvantaged: "Tax-advantaged (IRA/401k)" };
 
   const GROUPS = [
     { title: "Capital & backtest window", items: [
@@ -529,6 +616,10 @@ details summary{cursor:pointer;font-weight:600;font-size:12.5px;color:var(--acce
     { title: "Anchor sleeve (the rest)", items: [
       { key: "anchorKey", label: "Anchor fund", type: "select", options: ANCHOR_KEYS, optionLabels: ANCHOR_LABELS },
       { key: "anchorYield", label: "Anchor distribution yield", hint: "annual; auto-set per fund", type: "number", step: 0.5, suffix: "%" } ] },
+    { title: "Rebalancing", items: [
+      { key: "rebalance", label: "Cadence", type: "select", options: ["weekly", "monthly", "daily", "signal"], optionLabels: REBAL_LABELS },
+      { key: "executeTiming", label: "Execution timing", type: "select", options: ["nextOpen", "sameClose"], optionLabels: TIMING_LABELS },
+      { key: "rebalanceBand", label: "Rebalance band", hint: "signal mode: min % change to trade", type: "number", step: 1, suffix: "%" } ] },
     { title: "Whipsaw filter (parks engine in TLT)", items: [
       { key: "whipsaw", label: "Enable whipsaw filter", type: "switch" },
       { key: "whipsawDetector", label: "Detector", type: "select", options: ["both", "either", "adx", "er"], optionLabels: DET_LABELS },
@@ -555,9 +646,12 @@ details summary{cursor:pointer;font-weight:600;font-size:12.5px;color:var(--acce
     { title: "Rules", items: [
       { key: "vetoRsiOversold", label: "Oversold veto (stay long)", type: "switch" },
       { key: "safetySwitch", label: "VIX safety switch (SQQQ&rarr;TLT)", type: "switch" },
-      { key: "jepqRouteIncome", label: "Route anchor income into TQQQ", type: "switch" },
-      { key: "rebalance", label: "Rebalance cadence", type: "select", options: ["weekly", "monthly", "daily"] },
-      { key: "signalLagDays", label: "Execution lag", hint: "bars after signal", type: "number", step: 1 } ] },
+      { key: "jepqRouteIncome", label: "Route anchor income into TQQQ", type: "switch" } ] },
+    { title: "Taxes", items: [
+      { key: "accountType", label: "Account type", type: "select", options: ["taxable", "taxAdvantaged"], optionLabels: ACCT_LABELS },
+      { key: "stRate", label: "Short-term rate", hint: "ordinary income", type: "number", step: 1, suffix: "%" },
+      { key: "ltRate", label: "Long-term rate", type: "number", step: 1, suffix: "%" },
+      { key: "incomeRate", label: "Income/distribution rate", type: "number", step: 1, suffix: "%" } ] },
     { title: "Costs & assumptions", items: [
       { key: "tradingCostBps", label: "Trading cost per rebalance", hint: "bps on turnover", type: "number", step: 1 },
       { key: "extraMgmtFeePct", label: "Extra annual fee", hint: "fund ERs already in prices", type: "number", step: 0.05, suffix: "%" },
@@ -596,7 +690,7 @@ details summary{cursor:pointer;font-weight:600;font-size:12.5px;color:var(--acce
       input.min = it.min; input.max = it.max; input.step = it.step;
       const out = document.createElement("b"); out.id = "o_" + it.key; out.style.minWidth = "70px"; out.style.textAlign = "right";
       box.appendChild(input); box.appendChild(out); row.appendChild(box);
-      input.addEventListener("input", () => { out.innerHTML = input.value + (it.suffix || "") + (it.key === "enginePct" ? ` <span class="hint">/ ${100 - input.value}% anchor</span>` : ""); });
+      input.addEventListener("input", () => sliderOut(it.key, input.value, it.suffix));
       input.addEventListener("change", onControlChange);
     } else {
       const box = document.createElement("span"); box.style.cssText = "display:flex;align-items:center;gap:5px";
@@ -649,10 +743,9 @@ details summary{cursor:pointer;font-weight:600;font-size:12.5px;color:var(--acce
   }
   function onControlChange() {
     params = readParams();
-    if (params.anchorKey !== prevAnchor) {     // auto-set yield default for the new anchor
+    if (params.anchorKey !== prevAnchor) {
       const y = AINFO[params.anchorKey] ? AINFO[params.anchorKey].yield_ : params.anchorYield;
-      params.anchorYield = y; const el = $("c_anchorYield"); if (el) el.value = y;
-      prevAnchor = params.anchorKey;
+      params.anchorYield = y; const el = $("c_anchorYield"); if (el) el.value = y; prevAnchor = params.anchorKey;
     }
     updateSummary(); persist(); run();
   }
@@ -666,56 +759,53 @@ details summary{cursor:pointer;font-weight:600;font-size:12.5px;color:var(--acce
   }
   function updateSummary() {
     const p = params, anchor = 100 - p.enginePct, aLab = ALABEL(p.anchorKey);
-    const sweep = p.jepqRouteIncome ? `${aLab}'s ~${p.anchorYield}%/yr income is swept into TQQQ to compound faster` : `${aLab}'s income stays in ${aLab}`;
-    const veto = p.vetoRsiOversold ? `If RSI falls below <b>${p.rsiOversold}</b> the hedge is <b>vetoed</b> &mdash; stay long TQQQ for the snap-back.` : `The oversold veto is <b>off</b>.`;
-    const safety = p.safetySwitch ? `If <b>VIX</b> tops <b>${p.vixThresh}</b>, the SQQQ hedge goes to Treasuries (<b>TLT</b>) instead.` : `The VIX safety switch is <b>off</b>.`;
-    let whip;
-    if (p.whipsaw) {
-      const det = p.whipsawDetector;
-      const cond = det === "adx" ? `ADX(${p.adxWindow}) drops below <b>${p.adxThresh}</b>`
-        : det === "er" ? `the Efficiency Ratio(${p.erWindow}) drops below <b>${p.erThresh}</b>`
-        : det === "either" ? `ADX(${p.adxWindow}) &lt; <b>${p.adxThresh}</b> <i>or</i> Efficiency Ratio &lt; <b>${p.erThresh}</b>`
-        : `ADX(${p.adxWindow}) &lt; <b>${p.adxThresh}</b> <i>and</i> Efficiency Ratio &lt; <b>${p.erThresh}</b>`;
-      whip = `<b>Whipsaw filter ON:</b> when ${cond} (a choppy, trendless market), the <b>entire ${p.enginePct}% engine parks in TLT</b> until a clean trend resumes &mdash; sidestepping the leveraged-ETF decay that punishes this strategy in sideways years.`;
-    } else whip = `The whipsaw filter is <b>off</b>.`;
+    const _st = $("subTitle");
+    if (_st) _st.innerHTML = p.enginePct + "% Engine (TQQQ/SQQQ) + " + anchor + "% " + aLab + " anchor · " + (p.safetySwitch ? "VIX safety &rarr; TLT · " : "") + (p.whipsaw ? "whipsaw &rarr; TLT · " : "") + (p.accountType === "taxable" ? "after-tax · " : "") + "vs QQQ &amp; TQQQ";
+    const sweep = p.jepqRouteIncome ? `${aLab}'s ~${p.anchorYield}%/yr income is swept into TQQQ` : `${aLab}'s income stays in ${aLab}`;
+    const veto = p.vetoRsiOversold ? `If RSI &lt; <b>${p.rsiOversold}</b> the hedge is <b>vetoed</b>.` : `Oversold veto <b>off</b>.`;
+    const safety = p.safetySwitch ? `If <b>VIX</b> &gt; <b>${p.vixThresh}</b>, the SQQQ hedge goes to <b>TLT</b>.` : `VIX safety switch <b>off</b>.`;
+    let whip = p.whipsaw ? `<b>Whipsaw filter ON</b> (${p.whipsawDetector}): in choppy markets the entire engine parks in <b>TLT</b>.` : `Whipsaw filter <b>off</b>.`;
+    const cadence = p.rebalance === "signal"
+      ? `Evaluated <b>daily</b>; trades only when the target allocation drifts more than <b>${p.rebalanceBand}%</b>`
+      : `Rebalanced <b>${p.rebalance}</b>`;
+    const timing = p.executeTiming === "sameClose" ? "executed same day (~15m before close)" : "executed at the next open";
+    const taxLine = p.accountType === "taxable"
+      ? `<b>Taxable account:</b> short-term gains taxed at <b>${p.stRate}%</b>, long-term at <b>${p.ltRate}%</b>, income at <b>${p.incomeRate}%</b>. All performance below is <b>after-tax</b>.`
+      : `<b>Tax-advantaged account</b> (IRA/401k) — no taxes modeled.`;
     $("summary").innerHTML =
-      `Each <b>${p.rebalance}</b> rebalance, the strategy scores how dangerous the market looks for TQQQ (0 = calm &rarr; 1 = panic): ` +
-      `<b>${p.wTrend}</b> if TQQQ is below its <b>${p.smaWindow}-day</b> average, <b>${p.wVol}</b> if ${p.volWindow}-day volatility tops <b>${p.volThresh}%</b>, ` +
-      `<b>${p.wRsiHot}</b> if RSI(${p.rsiWindow}) &gt; <b>${p.rsiOverheat}</b>, and <b>${p.wRsiCold}</b> if RSI &lt; <b>${p.rsiOversold}</b>. ` +
-      `Capital splits <b>${anchor}%</b> into <b>${aLab}</b> (income/stability) and <b>${p.enginePct}%</b> rotating between TQQQ and SQQQ per your table. ` +
-      `${whip} ${veto} ${safety} Trades execute ${p.signalLagDays === 0 ? "same day" : p.signalLagDays + " bar(s) later"}; ${sweep}. ` +
-      `Costs: <b>${p.tradingCostBps} bps</b> per rebalance${p.extraMgmtFeePct > 0 ? ` + <b>${p.extraMgmtFeePct}%</b>/yr` : ""}.`;
+      `Capital splits <b>${anchor}%</b> into <b>${aLab}</b> and <b>${p.enginePct}%</b> rotating between TQQQ and SQQQ by a 0–1 hedge score ` +
+      `(+${p.wTrend} below ${p.smaWindow}d SMA, +${p.wVol} if ${p.volWindow}d vol &gt; ${p.volThresh}%, +${p.wRsiHot} if RSI&gt;${p.rsiOverheat}, ${p.wRsiCold} if RSI&lt;${p.rsiOversold}). ` +
+      `${whip} ${veto} ${safety} ${cadence}, ${timing}; ${sweep}. Costs <b>${p.tradingCostBps} bps</b>/rebalance. ${taxLine}`;
   }
 
   const NUM_FIELDS = {
-    adxthreshold: "adxThresh", adxthresh: "adxThresh", adx: "adxThresh",
-    erthreshold: "erThresh", efficiency: "erThresh", er: "erThresh",
-    vixthresh: "vixThresh", vix: "vixThresh",
-    engine: "enginePct", bull: "enginePct", leverage: "enginePct",
-    sma: "smaWindow", trend: "smaWindow",
-    volthresh: "volThresh", volatility: "volThresh", vol: "volThresh",
+    adxthreshold: "adxThresh", adxthresh: "adxThresh", adx: "adxThresh", erthreshold: "erThresh", efficiency: "erThresh", er: "erThresh",
+    vixthresh: "vixThresh", vix: "vixThresh", engine: "enginePct", bull: "enginePct", leverage: "enginePct",
+    sma: "smaWindow", trend: "smaWindow", volthresh: "volThresh", volatility: "volThresh", vol: "volThresh",
     overbought: "rsiOverheat", overheat: "rsiOverheat", oversold: "rsiOversold",
-    cost: "tradingCostBps", commission: "tradingCostBps", slippage: "tradingCostBps", bps: "tradingCostBps",
-    fee: "extraMgmtFeePct", yield: "anchorYield", income: "anchorYield",
-    riskfree: "riskFreePct", capital: "initialCapital", lag: "signalLagDays"
+    cost: "tradingCostBps", commission: "tradingCostBps", bps: "tradingCostBps", fee: "extraMgmtFeePct",
+    yield: "anchorYield", income: "anchorYield", riskfree: "riskFreePct", capital: "initialCapital",
+    band: "rebalanceBand", "short-term": "stRate", shortterm: "stRate", "long-term": "ltRate", longterm: "ltRate", incometax: "incomeRate"
   };
   function num1(s) { const m = String(s).match(/-?\d+(\.\d+)?/); return m ? +m[0] : null; }
   function parseNL(text) {
     const t = " " + text.toLowerCase().replace(/[%,$]/g, " ").replace(/\s+/g, " ") + " ";
     const patch = {};
     if (/\b(reset|default)/.test(t)) return { __reset: true };
-    if (/\b(daily|every day)\b/.test(t)) patch.rebalance = "daily";
+    if (/signal[- ]?driven|signal mode|trade on (drift|change)/.test(t)) patch.rebalance = "signal";
+    else if (/\bdaily\b/.test(t)) patch.rebalance = "daily";
     else if (/\bweekly\b/.test(t)) patch.rebalance = "weekly";
     else if (/\bmonthly\b/.test(t)) patch.rebalance = "monthly";
-    // anchor fund (require context; bare "adx" is the indicator, not the fund)
+    if (/before close|same.?day close|near close|sameclose/.test(t)) patch.executeTiming = "sameClose";
+    else if (/next open|next.?day open/.test(t)) patch.executeTiming = "nextOpen";
+    if (/tax[- ]?advantaged|ira|401k|roth|no tax/.test(t)) patch.accountType = "taxAdvantaged";
+    else if (/taxable|brokerage|after.?tax/.test(t)) patch.accountType = "taxable";
     const am = t.match(/\b(?:anchor|use|switch to|swap to|set anchor to)\s+(jepq|jepi|qyld|schd|bil|adx|adams)\b/) || t.match(/\b(jepq|jepi|qyld|schd|bil|adams)\b/);
     if (am) { const ak = am[1] === "adams" ? "adx" : am[1]; patch.anchorKey = ak; patch.anchorYield = AINFO[ak] ? AINFO[ak].yield_ : undefined; }
-    // whipsaw detector
-    if (/\bwhipsaw\b|\bchop/.test(t)) { const seg = t; patch.whipsaw = !/\b(off|disable|stop|no)\b/.test(seg); }
+    if (/\bwhipsaw\b|\bchop/.test(t)) patch.whipsaw = !/\b(off|disable|stop|no)\b/.test(t);
     if (/efficiency ratio only|\ber only\b/.test(t)) patch.whipsawDetector = "er";
     else if (/adx only/.test(t)) patch.whipsawDetector = "adx";
-    else if (/either/.test(t)) patch.whipsawDetector = "either";
-    else if (/\bboth\b/.test(t)) patch.whipsawDetector = "both";
+    else if (/\beither\b/.test(t)) patch.whipsawDetector = "either";
     const onoff = re => { const m = t.match(re); if (!m) return null; const seg = t.slice(Math.max(0, m.index - 12), m.index + m[0].length + 6); return /\b(off|disable|stop|no|without|remove)\b/.test(seg) ? false : true; };
     let v;
     if ((v = onoff(/safety switch|vix switch/)) !== null) patch.safetySwitch = v;
@@ -723,7 +813,6 @@ details summary{cursor:pointer;font-weight:600;font-size:12.5px;color:var(--acce
     if (/route|sweep|reinvest/.test(t) && /income/.test(t)) patch.jepqRouteIncome = onoff(/income/) !== false;
     let m;
     if ((m = t.match(/from\s+((19|20)\d\d)(-\d\d-\d\d)?/))) patch.startDate = m[3] ? m[1] + m[3] : m[1] + "-01-01";
-    if ((m = t.match(/(start date|since|starting)\s+((19|20)\d\d)(-\d\d-\d\d)?/))) patch.startDate = m[4] ? m[2] + m[4] : m[2] + "-01-01";
     if ((m = t.match(/(end date|until|through)\s+((19|20)\d\d)(-\d\d-\d\d)?/))) patch.endDate = m[4] ? m[2] + m[4] : m[2] + "-12-31";
     const keys = Object.keys(NUM_FIELDS).sort((a, b) => b.length - a.length);
     for (const k of keys) {
@@ -739,8 +828,7 @@ details summary{cursor:pointer;font-weight:600;font-size:12.5px;color:var(--acce
     const out = {}, notes = [];
     for (const [k, val] of Object.entries(patch)) {
       if (k === "__reset") { out.__reset = true; continue; }
-      if (!(k in DEFAULTS)) continue;
-      if (val === undefined) continue;
+      if (!(k in DEFAULTS) || val === undefined) continue;
       let v = val;
       if (typeof DEFAULTS[k] === "number") { v = +v; if (isNaN(v)) continue; if (RANGES[k]) { const [lo, hi] = RANGES[k]; v = Math.max(lo, Math.min(hi, v)); } }
       out[k] = v; notes.push(`${k} = ${typeof v === "number" ? v : "" + v}`);
@@ -750,7 +838,7 @@ details summary{cursor:pointer;font-weight:600;font-size:12.5px;color:var(--acce
   function applyPatch(patch, source) {
     const { out, notes } = clampPatch(patch);
     if (out.__reset) { params = structuredClone(DEFAULTS); prevAnchor = params.anchorKey; buildControls(); updateSummary(); persist(); run(); return setNL("Reset to defaults."); }
-    if (!notes.length) return setNL(`Couldn't map that. Try "anchor schd", "turn on whipsaw", "adx threshold 25", "engine 80%", or use the controls.`, true);
+    if (!notes.length) return setNL(`Couldn't map that. Try "anchor schd", "signal-driven rebalance", "tax-advantaged", "short-term 25", "engine 80%".`, true);
     params = { ...readParams(), ...out };
     if (params.anchorKey !== prevAnchor) prevAnchor = params.anchorKey;
     syncControlsAfterPatch(); updateSummary(); persist(); run();
@@ -772,11 +860,10 @@ details summary{cursor:pointer;font-weight:600;font-size:12.5px;color:var(--acce
       try {
         const schema = Object.keys(DEFAULTS).filter(k => k !== "lookup").map(k => k + (RANGES[k] ? `[${RANGES[k][0]}..${RANGES[k][1]}]` : "")).join(", ");
         const prompt =
-          `Translate a plain-English request into a JSON patch of strategy parameters.\n` +
-          `Allowed keys: ${schema}. Booleans: vetoRsiOversold, safetySwitch, jepqRouteIncome, whipsaw. ` +
-          `anchorKey is one of ${ANCHOR_KEYS.join("|")} (jepq/jepi/qyld=income funds, schd=dividends, bil=cash, adx=Adams equity fund). ` +
-          `whipsawDetector is "both"|"either"|"adx"|"er". rebalance is "weekly"|"monthly"|"daily". enginePct=% in TQQQ/SQQQ (rest is anchor).\n` +
-          `Current: ${JSON.stringify(readParams())}.\nRequest: "${text}".\nReply with ONLY a JSON object of keys to change.`;
+          `Translate a plain-English request into a JSON patch of strategy parameters.\nAllowed keys: ${schema}. ` +
+          `Booleans: vetoRsiOversold, safetySwitch, jepqRouteIncome, whipsaw. anchorKey in ${ANCHOR_KEYS.join("|")} (adx=Adams equity fund). ` +
+          `rebalance is "weekly"|"monthly"|"daily"|"signal". executeTiming is "nextOpen"|"sameClose". accountType is "taxable"|"taxAdvantaged". ` +
+          `whipsawDetector is "both"|"either"|"adx"|"er". enginePct=% in TQQQ/SQQQ (rest is anchor).\nCurrent: ${JSON.stringify(readParams())}.\nRequest: "${text}".\nReply with ONLY a JSON object of keys to change.`;
         const res = await window.cowork.askClaude(prompt, []);
         const txt = typeof res === "string" ? res : (res && (res.text || res.content || JSON.stringify(res)));
         const mm = txt && txt.match(/\{[\s\S]*\}/);
@@ -787,39 +874,62 @@ details summary{cursor:pointer;font-weight:600;font-size:12.5px;color:var(--acce
     applyPatch(parseNL(text), "parser");
   }
 
-  function runOne(p) {
+  // build one full run with pretax + after-tax (display) metrics
+  function buildRun(p) {
     const bt = E.runBacktest(D, p);
     if (bt.error) return { error: bt.error };
+    const taxable = p.accountType === "taxable";
+    const eq = taxable ? bt.equityAT : bt.equity;
     const qqqBH = E.buyHold(D.qqq, D.dates, bt.dates, p.initialCapital);
     const tqqqBH = E.buyHold(D.tqqq, D.dates, bt.dates, p.initialCapital);
-    const benchRet = E.seriesReturns(qqqBH);
-    const m = E.metrics(bt.equity, bt.dates, benchRet, p);
-    return { bt, qqqBH, tqqqBH, benchRet, m };
+    const qqqDisp = taxable ? E.buyHoldAfterTax(qqqBH, p) : qqqBH;
+    const tqqqDisp = taxable ? E.buyHoldAfterTax(tqqqBH, p) : tqqqBH;
+    const benchRet = E.seriesReturns(qqqDisp);
+    return {
+      bt, taxable, eq, eqPre: bt.equity, qqqDisp, tqqqDisp,
+      m: E.metrics(eq, bt.dates, benchRet, p),
+      mPre: E.metrics(bt.equity, bt.dates, E.seriesReturns(qqqBH), p),
+      mQ: E.metrics(qqqDisp, bt.dates, benchRet, p),
+      mQpre: E.metrics(qqqBH, bt.dates, E.seriesReturns(qqqBH), p),
+      mT: E.metrics(tqqqDisp, bt.dates, E.seriesReturns(tqqqDisp), p),
+      mTpre: E.metrics(tqqqBH, bt.dates, E.seriesReturns(tqqqBH), p),
+      qFinalPre: qqqBH[qqqBH.length - 1], tFinalPre: tqqqBH[tqqqBH.length - 1]
+    };
   }
   function run() {
-    const p = readParams();
-    const r = runOne(p);
-    if (r.error) { setNL(r.error, true); return; }
-    const mQ = E.metrics(r.qqqBH, r.bt.dates, r.benchRet, p);
-    const mT = E.metrics(r.tqqqBH, r.bt.dates, E.seriesReturns(r.tqqqBH), p);
-    const versionRuns = versions.map(v => ({ v, r: runOne(v.params) })).filter(x => !x.r.error);
-    lastRun = { p, r, mQ, mT, versionRuns };
-    renderKPIs(r.m, mQ); renderChart(currentChartType); renderTable(); renderSignal(p); renderVersionChips();
+    const now = () => (window.performance && performance.now) ? performance.now() : Date.now();
+    const t0 = now();
+    try {
+      const p = readParams();
+      const cur = buildRun(p);
+      if (cur.error) { setNL(cur.error, true); const s0 = $("runStamp"); if (s0) s0.textContent = cur.error; return; }
+      const versionRuns = versions.map(v => ({ v, run: buildRun(v.params) })).filter(x => !x.run.error);
+      lastRun = { p, cur, versionRuns };
+      renderKPIs(cur); renderChart(currentChartType); renderTable(); renderSignal(p); renderVersionChips(); renderCompareSel();
+      const s = $("runStamp"); if (s) s.textContent = "Updated " + new Date().toLocaleTimeString() + " · " + Math.round(now() - t0) + " ms";
+    } catch (e) {
+      const s = $("runStamp"); if (s) s.textContent = "Error: " + e.message;
+      setNL("Backtest error: " + e.message + " (press F12 → Console for details)", true);
+      if (window.console) console.error(e);
+    }
   }
-  function renderKPIs(m, mQ) {
-    const beat = m.cagr - mQ.cagr;
+
+  function renderKPIs(cur) {
+    const m = cur.m, mQ = cur.mQ, beat = m.cagr - mQ.cagr, tx = cur.taxable;
     const items = [
-      ["Final value", money(m.finalValue), moneyShort(m.finalValue)],
-      ["CAGR", pct(m.cagr), (beat >= 0 ? "+" : "") + pct1(beat) + " vs QQQ"],
+      ["Final value" + (tx ? " (after-tax)" : ""), money(m.finalValue), moneyShort(m.finalValue)],
+      ["CAGR" + (tx ? " (after-tax)" : ""), pct(m.cagr), (beat >= 0 ? "+" : "") + pct1(beat) + " vs QQQ"],
       ["Max drawdown", pct(m.maxDD), "Calmar " + num(m.calmar)],
       ["Sharpe", num(m.sharpe), "Sortino " + num(m.sortino)],
       ["Volatility", pct(m.volA), "ann."],
-      ["Total return", pct(m.totalReturn, 0), m.years.toFixed(1) + " yrs"],
+      tx ? ["Tax drag", pct(cur.mPre.cagr - m.cagr) + "/yr", "pretax CAGR " + pct(cur.mPre.cagr)]
+         : ["Total return", pct(m.totalReturn, 0), m.years.toFixed(1) + " yrs"],
       ["Alpha vs QQQ", pct(m.alpha), "&beta; " + num(m.beta)],
       ["Worst year", pct(m.worstYear), "best " + pct(m.bestYear)]
     ];
     $("kpis").innerHTML = items.map(([k, v, s]) => `<div class="kpi"><div class="v">${v}</div><div class="k">${k}</div><div class="k" style="text-transform:none;color:var(--muted)">${s}</div></div>`).join("");
   }
+
   const proxyLine = {
     id: "proxyLine",
     afterDraw(c) {
@@ -833,8 +943,7 @@ details summary{cursor:pointer;font-weight:600;font-size:12.5px;color:var(--acce
       ctx.save(); ctx.strokeStyle = "#94a3b8"; ctx.setLineDash([4, 4]); ctx.lineWidth = 1;
       ctx.beginPath(); ctx.moveTo(px, top); ctx.lineTo(px, bot); ctx.stroke();
       ctx.setLineDash([]); ctx.fillStyle = "#64748b"; ctx.font = "10px sans-serif";
-      ctx.fillText("← " + ALABEL(ak) + " proxy", px - 78, top + 11);
-      ctx.fillText("real →", px + 4, top + 11);
+      ctx.fillText("← " + ALABEL(ak) + " proxy", px - 78, top + 11); ctx.fillText("real →", px + 4, top + 11);
       ctx.restore();
     }
   };
@@ -854,8 +963,8 @@ details summary{cursor:pointer;font-weight:600;font-size:12.5px;color:var(--acce
     if (chart) { chart.destroy(); chart = null; }
     if (!lastRun) return;
     if (type === "annual") return renderAnnual();
-    const { r, versionRuns, p } = lastRun;
-    const master = r.bt.dates, idx = sampleIdx(master.length, 800);
+    const { cur, versionRuns, p } = lastRun;
+    const master = cur.bt.dates, idx = sampleIdx(master.length, 800);
     const labels = idx.map(i => master[i]); const pick = arr => idx.map(i => arr[i]);
     const ds = [];
     if (type === "equity" || type === "drawdown") {
@@ -863,12 +972,12 @@ details summary{cursor:pointer;font-weight:600;font-size:12.5px;color:var(--acce
         const series = type === "equity" ? vals : E.drawdownSeries(vals);
         return { label, data: pick(alignToDates(master, dates, series)), borderColor: color, backgroundColor: type === "drawdown" ? color + "22" : "transparent", borderWidth: width || 1.6, pointRadius: 0, fill: type === "drawdown", tension: 0, spanGaps: true };
       };
-      ds.push(mk("Strategy", master, r.bt.equity, "#0f172a", 2.2));
-      versionRuns.forEach(vr => ds.push(mk(vr.v.name, vr.r.bt.dates, vr.r.bt.equity, vr.v.color, 1.5)));
-      ds.push(mk("QQQ", master, r.qqqBH, "#64748b", 1.4));
-      ds.push(mk("TQQQ", master, r.tqqqBH, "#94a3b8", 1.2));
+      ds.push(mk("Strategy", master, cur.eq, "#0f172a", 2.2));
+      versionRuns.forEach(vr => { if (compare.ver[vr.v.id] !== false) ds.push(mk(vr.v.name, vr.run.bt.dates, vr.run.eq, vr.v.color, 1.5)); });
+      if (compare.qqq) ds.push(mk("QQQ", master, cur.qqqDisp, "#64748b", 1.4));
+      if (compare.tqqq) ds.push(mk("TQQQ", master, cur.tqqqDisp, "#94a3b8", 1.2));
     } else if (type === "alloc") {
-      const w = r.bt.wHist;
+      const w = cur.bt.wHist;
       const series = (sel, color, label) => ({ label, data: pick(w.map(x => x[sel] * 100)), borderColor: color, backgroundColor: color + "cc", borderWidth: 0, pointRadius: 0, fill: true, tension: 0, stack: "a" });
       ds.push(series("tqqq", "#2563eb", "TQQQ"));
       ds.push(series("sqqq", "#dc2626", "SQQQ"));
@@ -892,22 +1001,27 @@ details summary{cursor:pointer;font-weight:600;font-size:12.5px;color:var(--acce
         }
       }
     });
+    const taxTag = cur.taxable ? "After-tax. " : "";
     $("chartNote").innerHTML = isAlloc ? "Stacked sleeve weights over time. Flat TLT spans are the whipsaw filter parking the engine."
-      : isDD ? "Peak-to-trough decline vs benchmarks."
-      : "Growth of " + money(lastRun.p.initialCapital) + ". Dashed line marks where the anchor's real data begins (earlier is a labeled proxy).";
+      : isDD ? taxTag + "Peak-to-trough decline vs benchmarks."
+      : taxTag + "Growth of " + money(lastRun.p.initialCapital) + ". Dashed line marks where the anchor's real data begins.";
   }
   function renderAnnual() {
-    const { r, mQ, mT } = lastRun;
-    const years = Object.keys(r.m.yearReturns);
+    const { cur } = lastRun;
+    const years = Object.keys(cur.m.yearReturns);
     const bar = (label, mm, color) => ({ label, data: years.map(y => (mm.yearReturns[y] ?? null) * 100), backgroundColor: color, borderWidth: 0, categoryPercentage: 0.8, barPercentage: 0.9 });
+    const sets = [bar("Strategy", cur.m, "#0f172a")];
+    if (compare.qqq) sets.push(bar("QQQ", cur.mQ, "#64748b"));
+    if (compare.tqqq) sets.push(bar("TQQQ", cur.mT, "#cbd5e1"));
     chart = new Chart($("mainChart"), {
-      type: "bar", data: { labels: years, datasets: [bar("Strategy", r.m, "#0f172a"), bar("QQQ", mQ, "#64748b"), bar("TQQQ", mT, "#cbd5e1")] },
+      type: "bar", data: { labels: years, datasets: sets },
       options: { responsive: true, maintainAspectRatio: false, animation: false,
         scales: { x: { grid: { display: false }, ticks: { color: "#64748b", font: { size: 10 } } }, y: { ticks: { callback: v => v + "%", color: "#64748b", font: { size: 10 } }, grid: { color: "#eef1f5" } } },
         plugins: { legend: { position: "bottom", labels: { boxWidth: 12, font: { size: 11 }, color: "#334155", usePointStyle: true } }, tooltip: { callbacks: { label: c => `${c.dataset.label}: ${c.parsed.y == null ? "n/a" : c.parsed.y.toFixed(1) + "%"}` } } } }
     });
-    $("chartNote").innerHTML = "Calendar-year total returns vs benchmarks.";
+    $("chartNote").innerHTML = (cur.taxable ? "After-tax c" : "C") + "alendar-year returns vs benchmarks.";
   }
+
   const METRICS = [
     ["finalValue", "Final value", "money", 1], ["totalReturn", "Total return", "pct0", 1],
     ["cagr", "CAGR", "pct", 1], ["volA", "Volatility (ann.)", "pct", -1],
@@ -927,10 +1041,12 @@ details summary{cursor:pointer;font-weight:600;font-size:12.5px;color:var(--acce
     return v.toFixed(2);
   }
   function renderTable() {
-    const { r, mQ, mT, versionRuns } = lastRun;
-    const cols = [{ name: "Strategy", m: r.m, st: r.bt.stats, strat: true }];
-    versionRuns.forEach(vr => cols.push({ name: vr.v.name, m: vr.r.m, st: vr.r.bt.stats, strat: true, color: vr.v.color }));
-    cols.push({ name: "QQQ", m: mQ }); cols.push({ name: "TQQQ", m: mT });
+    const { cur, versionRuns } = lastRun;
+    const taxable = cur.taxable;
+    const cols = [{ name: "Strategy", m: cur.m, mPre: cur.mPre, st: cur.bt.stats, tax: cur.bt.tax, strat: true }];
+    versionRuns.forEach(vr => { if (compare.ver[vr.v.id] !== false) cols.push({ name: vr.v.name, m: vr.run.m, mPre: vr.run.mPre, st: vr.run.bt.stats, tax: vr.run.bt.tax, strat: true, color: vr.v.color }); });
+    if (compare.qqq) cols.push({ name: "QQQ", m: cur.mQ, mPre: cur.mQpre, benchTax: cur.qFinalPre - cur.mQ.finalValue });
+    if (compare.tqqq) cols.push({ name: "TQQQ", m: cur.mT, mPre: cur.mTpre, benchTax: cur.tFinalPre - cur.mT.finalValue });
     let head = `<thead><tr><th>Metric</th>${cols.map(c => `<th>${c.color ? `<span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${c.color};margin-right:4px"></span>` : ""}${c.name}</th>`).join("")}</tr></thead>`;
     let body = "<tbody>";
     for (const [key, label, kind, dir] of METRICS) {
@@ -946,16 +1062,40 @@ details summary{cursor:pointer;font-weight:600;font-size:12.5px;color:var(--acce
       }
       body += `<tr><td class="metric-name">${label}</td>` + vals.map((v, i) => `<td class="${i === best ? "cell-best" : i === worst ? "cell-worst" : ""}">${fmtMetric(kind, v)}</td>`).join("") + "</tr>";
     }
-    const exRow = (label, fn) => { body += `<tr><td class="metric-name">${label}<small>strategy only</small></td>` + cols.map(c => `<td>${c.strat ? fn(c) : "&mdash;"}</td>`).join("") + "</tr>"; };
-    exRow("Avg SQQQ / TLT hedge", c => c.st ? (c.st.avgSqqq * 100).toFixed(1) + "% / " + (c.st.avgTlt * 100).toFixed(1) + "%" : "&mdash;");
-    exRow("% time hedged", c => c.st ? (c.st.pctHedged * 100).toFixed(0) + "%" : "&mdash;");
-    exRow("Whipsaw rebalances", c => c.st ? "" + c.st.whipDays : "&mdash;");
-    exRow("Rebalances / total cost", c => c.st ? c.st.rebalCount + " / " + moneyShort(c.st.costSum) : "&mdash;");
+    const exRow = (label, fn, sub) => { body += `<tr><td class="metric-name">${label}${sub ? `<small>${sub}</small>` : ""}</td>` + cols.map(fn).join("") + "</tr>"; };
+    if (taxable) {
+      exRow("Pretax CAGR", c => `<td>${pct(c.mPre.cagr)}</td>`, "before taxes");
+      exRow("Total taxes paid", c => `<td>${c.strat ? moneyShort(c.tax.total) : (c.benchTax != null ? moneyShort(c.benchTax) : "&mdash;")}</td>`);
+      exRow("% gains short-term", c => `<td>${c.strat ? pct(c.tax.pctShortTerm) : "~0%"}</td>`, "leveraged-ETF tax penalty");
+    }
+    exRow("Avg SQQQ / TLT hedge", c => `<td>${c.st ? (c.st.avgSqqq * 100).toFixed(1) + "% / " + (c.st.avgTlt * 100).toFixed(1) + "%" : "&mdash;"}</td>`, "strategy only");
+    exRow("% time hedged", c => `<td>${c.st ? (c.st.pctHedged * 100).toFixed(0) + "%" : "&mdash;"}</td>`);
+    exRow("Rebalances / cost", c => `<td>${c.st ? c.st.rebalCount + " / " + moneyShort(c.st.costSum) : "&mdash;"}</td>`);
     body += "</tbody>";
     $("cmpTable").innerHTML = head + body;
+    const tn = $("taxNote");
+    if (tn) {
+      if (taxable) { tn.style.display = ""; tn.innerHTML = `Showing <b>after-tax</b> results for a <b>taxable</b> account (ST ${lastRun.p.stRate}%, LT ${lastRun.p.ltRate}%, income ${lastRun.p.incomeRate}%). Benchmarks defer to one long-term sale, so they look far more tax-efficient. Switch <b>Account type</b> to tax-advantaged for pretax.`; }
+      else tn.style.display = "none";
+    }
+  }
+  function renderCompareSel() {
+    const { versionRuns } = lastRun;
+    const cb = (id, label, checked, color) => `<label style="display:inline-flex;align-items:center;gap:4px;margin-right:12px"><input type="checkbox" data-cmp="${id}" ${checked ? "checked" : ""}>${color ? `<span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${color}"></span>` : ""}${label}</label>`;
+    let html = "<b>Compare:</b> ";
+    versionRuns.forEach(vr => { html += cb("ver:" + vr.v.id, vr.v.name, compare.ver[vr.v.id] !== false, vr.v.color); });
+    html += cb("qqq", "QQQ", compare.qqq) + cb("tqqq", "TQQQ", compare.tqqq);
+    $("compareSel").innerHTML = html;
+    document.querySelectorAll("[data-cmp]").forEach(el => el.onchange = () => {
+      const id = el.dataset.cmp;
+      if (id === "qqq") compare.qqq = el.checked;
+      else if (id === "tqqq") compare.tqqq = el.checked;
+      else if (id.startsWith("ver:")) compare.ver[id.slice(4)] = el.checked;
+      renderChart(currentChartType); renderTable();
+    });
   }
   function renderSignal(p) {
-    const ind = lastRun.r.bt.ind;
+    const ind = lastRun.cur.bt.ind;
     const i = D.dates.length - 1;
     const tw = E.targetWeights(i, ind, D, p);
     const [state, color] = stateForScore(tw.h);
@@ -965,14 +1105,8 @@ details summary{cursor:pointer;font-weight:600;font-size:12.5px;color:var(--acce
     $("signalAsOf").textContent = "(as of " + D.dates[i] + ")";
     const segs = [["TQQQ", tw.tqqq, "#2563eb"], ["SQQQ", tw.sqqq, "#dc2626"], ["TLT", tw.tlt, "#7c3aed"], [aLab, tw.jepq, "#16a34a"]].filter(s => s[1] > 0.001);
     $("sigAlloc").innerHTML = segs.map(([n, w, c]) => `<span style="width:${(w * 100).toFixed(1)}%;background:${c}">${w >= 0.08 ? n + " " + (w * 100).toFixed(0) + "%" : ""}</span>`).join("");
-    const parts = [];
-    parts.push(`Trend ${tw.price < tw.sma ? "below" : "above"} ${p.smaWindow}d SMA`);
-    parts.push(`vol ${tw.vol == null ? "?" : tw.vol.toFixed(0)}%`);
-    parts.push(`RSI ${tw.rsi == null ? "?" : tw.rsi.toFixed(0)}`);
-    parts.push(`ADX ${tw.adx == null ? "?" : tw.adx.toFixed(0)}`);
-    parts.push(`ER ${tw.er == null ? "?" : tw.er.toFixed(2)}`);
-    parts.push(`VIX ${tw.vix == null ? "?" : tw.vix.toFixed(0)}`);
-    if (tw.whip) parts.push("<b>whipsaw: engine&rarr;TLT</b>");
+    const parts = [`Trend ${tw.price < tw.sma ? "below" : "above"} ${p.smaWindow}d`, `vol ${tw.vol == null ? "?" : tw.vol.toFixed(0)}%`, `RSI ${tw.rsi == null ? "?" : tw.rsi.toFixed(0)}`, `ADX ${tw.adx == null ? "?" : tw.adx.toFixed(0)}`, `ER ${tw.er == null ? "?" : tw.er.toFixed(2)}`, `VIX ${tw.vix == null ? "?" : tw.vix.toFixed(0)}`];
+    if (tw.whip) parts.push("<b>whipsaw&rarr;TLT</b>");
     if (tw.safety) parts.push("<b>VIX safety&rarr;TLT</b>");
     if (tw.vetoed) parts.push("<b>oversold veto</b>");
     $("sigBreak").innerHTML = segs.map(([n, w, c]) => `<span style="color:${c};font-weight:700">${n} ${(w * 100).toFixed(0)}%</span>`).join(" &middot; ") + " &nbsp;|&nbsp; " + parts.join(" &middot; ");
@@ -981,52 +1115,76 @@ details summary{cursor:pointer;font-weight:600;font-size:12.5px;color:var(--acce
     const drift = Math.abs(prev.tqqq - tw.tqqq) + Math.abs(prev.sqqq - tw.sqqq) + Math.abs(prev.tlt - tw.tlt) + Math.abs(prev.jepq - tw.jepq);
     $("sigRebal").innerHTML = drift > 0.005 ? `<span style="color:var(--red)">&#9679; Rebalance signalled</span>` : `<span style="color:var(--green)">&#9679; No change needed</span>`;
   }
+
   function renderVersionChips() {
-    $("versionChips").innerHTML = versions.map(v => `<span class="chip"><span class="sw" style="background:${v.color}"></span>${v.name}<button data-del="${v.id}" title="remove">&times;</button></span>`).join("");
-    document.querySelectorAll("[data-del]").forEach(b => b.onclick = () => { versions = versions.filter(v => v.id !== b.dataset.del); persist(); run(); });
+    $("versionChips").innerHTML = (versions.length ? "" : `<span class="hint">No saved versions yet — tweak the strategy and click "Save as new". Click a saved chip to load &amp; edit it.</span>`) +
+      versions.map(v => `<span class="chip" style="${editingVersionId === v.id ? "outline:2px solid " + v.color : ""}"><span class="sw" style="background:${v.color}"></span><span data-load="${v.id}" style="cursor:pointer" title="load &amp; edit">${v.name}</span><button data-del="${v.id}" title="remove">&times;</button></span>`).join("");
+    document.querySelectorAll("[data-load]").forEach(el => el.onclick = () => loadVersion(el.dataset.load));
+    document.querySelectorAll("[data-del]").forEach(b => b.onclick = () => {
+      versions = versions.filter(v => v.id !== b.dataset.del);
+      if (editingVersionId === b.dataset.del) { editingVersionId = null; $("btnUpdate").style.display = "none"; }
+      persist(); run();
+    });
+  }
+  function loadVersion(id) {
+    const v = versions.find(x => x.id === id); if (!v) return;
+    params = { ...DEFAULTS, ...structuredClone(v.params) }; prevAnchor = params.anchorKey; editingVersionId = id;
+    buildControls(); updateSummary(); persist(); run();
+    $("btnUpdate").style.display = ""; $("btnUpdate").textContent = "Update “" + v.name + "”";
+    setNL(`Loaded "${v.name}" into the controls — edit and click "Update" to save changes, or "Save as new".`);
   }
   function saveVersion() {
     const n = versions.length + 1;
     const name = prompt("Name this version:", "v" + n) || ("v" + n);
-    versions.push({ id: "v" + Date.now(), name, color: PALETTE[(versions.length + 1) % PALETTE.length], params: readParams() });
+    const id = "v" + Date.now();
+    versions.push({ id, name, color: PALETTE[(versions.length + 1) % PALETTE.length], params: readParams() });
+    compare.ver[id] = true; editingVersionId = id;
+    $("btnUpdate").style.display = ""; $("btnUpdate").textContent = "Update “" + name + "”";
     persist(); run();
   }
-  function persist() { try { localStorage.setItem("lrs_state_v3", JSON.stringify({ params: readParams(), versions })); } catch (e) {} }
+  function updateVersion() {
+    const v = versions.find(x => x.id === editingVersionId); if (!v) return;
+    v.params = readParams(); persist(); run(); setNL(`Updated "${v.name}".`);
+  }
+
+  function persist() { try { localStorage.setItem("lrs_state_v4", JSON.stringify({ params: readParams(), versions, compare, editingVersionId })); } catch (e) {} }
   function restore() {
-    try { const s = JSON.parse(localStorage.getItem("lrs_state_v3")); if (s && s.params) { params = { ...DEFAULTS, ...s.params }; prevAnchor = params.anchorKey; versions = s.versions || []; } } catch (e) {}
+    try {
+      const s = JSON.parse(localStorage.getItem("lrs_state_v4"));
+      if (s && s.params) { params = { ...DEFAULTS, ...s.params }; prevAnchor = params.anchorKey; versions = s.versions || []; compare = s.compare || compare; editingVersionId = s.editingVersionId || null; }
+    } catch (e) {}
   }
   function exportConfig() {
     const blob = new Blob([JSON.stringify(readParams(), null, 2)], { type: "application/json" });
     const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "strategy_config.json"; a.click();
-    setNL("Exported strategy_config.json &mdash; commit it to your repo so the alert workflow uses these exact parameters.");
+    setNL("Exported strategy_config.json — commit it to your repo so the alert workflow uses these exact parameters.");
   }
   function renderAlerts() {
     $("alertsHost").innerHTML =
-      `<div class="callout">The dashboard runs <b>inside a sandbox</b> and cannot send messages itself. Live alerts run on <b>GitHub Actions</b> (free), which re-checks this exact signal logic (including ADX/whipsaw) on a schedule and emails/Telegrams you only when the target allocation changes.</div>
-      <div class="two-col">
-      <div><b>One-time setup</b>
+      `<div class="callout">The dashboard runs <b>inside a sandbox</b> and cannot send messages itself. Live alerts run on <b>GitHub Actions</b>, which re-checks this exact signal logic on a schedule and emails/Telegrams you only when the target allocation changes.</div>
+      <div class="two-col"><div><b>One-time setup</b>
       <ol style="margin:6px 0 0;padding-left:18px;line-height:1.7">
         <li>Push this folder to a GitHub repo.</li>
         <li>Settings &rarr; Secrets &rarr; Actions: add <code>TELEGRAM_BOT_TOKEN</code>, <code>TELEGRAM_CHAT_ID</code>, <code>SMTP_USER</code>, <code>SMTP_PASS</code>, <code>ALERT_TO</code>.</li>
-        <li>Enable Actions and (optionally) GitHub Pages to host this dashboard.</li>
-        <li>It commits <code>alerts/state.json</code> and alerts on change.</li>
-      </ol></div>
+        <li>Enable Actions and (optionally) GitHub Pages.</li></ol></div>
       <div><b>What an alert looks like</b>
       <pre>ROTATION — REBALANCE
-State: Whipsaw → TLT (ADX 17)
-TQQQ 0% | SQQQ 0% | TLT 70% | JEPQ 30%
-(was TQQQ 55% | SQQQ 15% | JEPQ 30%)</pre>
+State: Weakness (score 0.30)
+TQQQ 55% | SQQQ 15% | JEPQ 30%
+(was TQQQ 70% | JEPQ 30%)</pre>
       <button class="btn" id="btnExportCfg2">Export config for the alert script</button></div></div>`;
     $("btnExportCfg2").onclick = exportConfig;
   }
   function init() {
     $("dataBadge").innerHTML = `${META.start} &rarr; ${META.end} &middot; ${META.n.toLocaleString()} days &middot; ${META.source}`;
-    $("envNote").innerHTML = (window.cowork && window.cowork.askClaude) ? "AI plain-English editing: ON" : "AI editing off &mdash; using built-in parser";
-    $("foot").innerHTML = `Anchors before their launch are calibrated proxies (regressed on QQQ/SPY). Leveraged-ETF prices already include fund expense ratios. ADX = Average Directional Index (whipsaw detector); the ADX <i>anchor</i> is the Adams Diversified Equity Fund. Educational backtest — not investment advice.`;
+    $("envNote").innerHTML = (window.cowork && window.cowork.askClaude) ? "AI plain-English editing: ON" : "AI editing off — using built-in parser";
+    $("foot").innerHTML = `Anchors before their launch are calibrated proxies. Leveraged-ETF prices include fund expense ratios. Taxes are modeled (average-cost basis, yearly payment, no wash-sale rule) — an approximation, not tax advice. ADX = Average Directional Index (whipsaw); the ADX <i>anchor</i> is the Adams Diversified Equity Fund. Educational tool, not investment advice.`;
     restore(); buildControls(); updateSummary(); renderAlerts();
     $("btnRun").onclick = run;
     $("btnSave").onclick = saveVersion;
-    $("btnReset").onclick = () => { params = structuredClone(DEFAULTS); prevAnchor = params.anchorKey; buildControls(); updateSummary(); persist(); run(); };
+    $("btnUpdate").onclick = updateVersion;
+    if (editingVersionId && versions.find(v => v.id === editingVersionId)) { $("btnUpdate").style.display = ""; $("btnUpdate").textContent = "Update version"; }
+    $("btnReset").onclick = () => { params = structuredClone(DEFAULTS); prevAnchor = params.anchorKey; editingVersionId = null; $("btnUpdate").style.display = "none"; buildControls(); updateSummary(); persist(); run(); };
     $("btnNl").onclick = applyNL;
     $("nlInput").addEventListener("keydown", e => { if (e.key === "Enter") applyNL(); });
     $("btnExportCfg").onclick = exportConfig;

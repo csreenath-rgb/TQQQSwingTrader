@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Leveraged Rotation Strategy — Backtest & Signal Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js" integrity="sha384-iU8HYtnGQ8Cy4zl7gbNMOhsDTTKX02BTXptVP/vqAWIaTfM7isw76iyZCsjL2eVi" crossorigin="anonymous"></script>
+<style>
+:root{
+  color-scheme: light;
+  --bg:#f4f6fa; --card:#ffffff; --ink:#161a22; --muted:#5b6573; --line:#e3e8ef;
+  --accent:#2563eb; --accent2:#0ea5e9; --green:#16a34a; --red:#dc2626; --amber:#d97706;
+  --tqqq:#2563eb; --sqqq:#dc2626; --jepq:#16a34a; --tlt:#7c3aed; --qqq:#64748b; --strat:#0f172a;
+  --shadow:0 1px 3px rgba(16,24,40,.06),0 1px 2px rgba(16,24,40,.04);
+  --radius:12px;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+h1,h2,h3{margin:0;font-weight:650;letter-spacing:-.01em}
+a{color:var(--accent)}
+.wrap{max-width:1320px;margin:0 auto;padding:18px}
+header.top{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:14px}
+.brand h1{font-size:19px}
+.brand .sub{color:var(--muted);font-size:12.5px;margin-top:2px}
+.badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;background:#eef2ff;color:#3730a3;border:1px solid #e0e7ff}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
+.pad{padding:16px}
+.grid{display:grid;grid-template-columns:380px 1fr;gap:16px;align-items:start}
+@media (max-width:980px){.grid{grid-template-columns:1fr}}
+.section-title{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:700;margin:0 0 10px}
+.controls .group{border-top:1px solid var(--line);padding:13px 0}
+.controls .group:first-of-type{border-top:none;padding-top:2px}
+.ctl{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;margin:7px 0}
+.ctl label{color:#283042;font-size:12.5px}
+.ctl .hint{color:var(--muted);font-size:11px;font-weight:400}
+.ctl input[type=number],.ctl input[type=date],.ctl select{width:104px;padding:5px 7px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink);font:inherit;text-align:right}
+.ctl select{text-align:left;width:188px;padding-right:24px;text-overflow:ellipsis}
+.ctl input[type=range]{width:150px}
+.switch{display:inline-flex;align-items:center;gap:7px}
+.switch input{width:34px;height:18px;-webkit-appearance:none;appearance:none;background:#cbd5e1;border-radius:999px;position:relative;cursor:pointer;transition:.15s;outline:none}
+.switch input:checked{background:var(--green)}
+.switch input::after{content:"";position:absolute;width:14px;height:14px;background:#fff;border-radius:50%;top:2px;left:2px;transition:.15s}
+.switch input:checked::after{left:18px}
+.btn{appearance:none;border:1px solid var(--line);background:#fff;color:var(--ink);padding:9px 13px;border-radius:9px;font:inherit;font-weight:600;cursor:pointer;transition:.12s}
+.btn:hover{border-color:#cdd5df;background:#fafbfc}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.primary:hover{background:#1d4ed8}
+.btn.ghost{background:transparent}
+.btn-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+.lookup-table{width:100%;border-collapse:collapse;font-size:12px;margin-top:6px}
+.lookup-table th,.lookup-table td{border:1px solid var(--line);padding:3px 5px;text-align:center}
+.lookup-table input{width:54px;border:none;text-align:center;font:inherit;background:transparent}
+.summary{background:#f8fafc;border:1px solid var(--line);border-radius:10px;padding:12px 13px;font-size:13px;line-height:1.55;color:#26303f}
+.summary b{color:var(--ink)}
+.nl-box{display:flex;gap:8px;margin-top:8px}
+.nl-box input{flex:1;padding:9px 11px;border:1px solid var(--line);border-radius:9px;font:inherit}
+.nl-status{font-size:12px;color:var(--muted);margin-top:6px;min-height:16px}
+.signal-banner{display:grid;grid-template-columns:auto 1fr auto;gap:16px;align-items:center}
+.dot{width:11px;height:11px;border-radius:50%;display:inline-block;margin-right:6px;vertical-align:middle}
+.alloc-bars{display:flex;height:30px;border-radius:7px;overflow:hidden;border:1px solid var(--line);min-width:220px}
+.alloc-bars span{display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:700}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+@media (max-width:680px){.kpis{grid-template-columns:repeat(2,1fr)}}
+.kpi{background:#f8fafc;border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.kpi .v{font-size:18px;font-weight:700;letter-spacing:-.02em}
+.kpi .k{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:2px}
+.tabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:10px}
+.tab{padding:7px 12px;border-radius:8px;font-size:12.5px;font-weight:600;cursor:pointer;color:var(--muted);border:1px solid transparent}
+.tab.active{background:#eef2ff;color:#3730a3;border-color:#e0e7ff}
+.chart-wrap{position:relative;height:420px}
+.chart-wrap.short{height:300px}
+.legend-note{font-size:11.5px;color:var(--muted);margin-top:8px}
+table.cmp{width:100%;border-collapse:collapse;font-size:12.5px}
+table.cmp th,table.cmp td{padding:7px 10px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+table.cmp th:first-child,table.cmp td:first-child{text-align:left;position:sticky;left:0;background:var(--card)}
+table.cmp thead th{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);border-bottom:2px solid var(--line)}
+table.cmp tr:hover td{background:#fafbfc}
+.cell-best{background:#ecfdf5;color:#065f46;font-weight:700;border-radius:4px}
+.cell-worst{background:#fef2f2;color:#991b1b}
+.metric-name{display:flex;flex-direction:column}
+.metric-name small{color:var(--muted);font-weight:400;font-size:10.5px}
+.versions{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
+.chip{display:inline-flex;align-items:center;gap:7px;padding:5px 9px;border-radius:999px;border:1px solid var(--line);font-size:12px;background:#fff}
+.chip .sw{width:10px;height:10px;border-radius:3px}
+.chip button{border:none;background:none;cursor:pointer;color:var(--muted);font-size:14px;line-height:1;padding:0}
+.scroll-x{overflow-x:auto}
+.callout{border-left:3px solid var(--accent);background:#f8fafc;padding:10px 13px;border-radius:0 8px 8px 0;font-size:12.5px;color:#26303f;margin:8px 0}
+.callout.warn{border-left-color:var(--amber);background:#fffbeb}
+code{background:#f1f5f9;padding:1px 5px;border-radius:5px;font-size:12px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+pre{background:#0f172a;color:#e2e8f0;padding:12px;border-radius:9px;overflow-x:auto;font-size:11.5px;line-height:1.5}
+.foot{color:var(--muted);font-size:11.5px;text-align:center;margin:18px 0 6px}
+details summary{cursor:pointer;font-weight:600;font-size:12.5px;color:var(--accent)}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media (max-width:780px){.two-col{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <h1>Leveraged Rotation Strategy — Backtest & Signal Dashboard</h1>
+      <div class="sub" id="subTitle">70% Engine (TQQQ/SQQQ) + 30% Anchor (JEPQ) · VIX safety &rarr; TLT · benchmarked vs QQQ &amp; TQQQ</div>
+    </div>
+    <div style="text-align:right">
+      <span class="badge" id="dataBadge">data &hellip;</span>
+      <div class="sub" style="margin-top:4px" id="envNote"></div>
+    </div>
+  </header>
+
+  <!-- LIVE SIGNAL BANNER -->
+  <div class="card pad" style="margin-bottom:16px">
+    <div class="section-title">Current signal &mdash; latest available data <span id="signalAsOf" style="text-transform:none;color:var(--muted)"></span></div>
+    <div class="signal-banner">
+      <div>
+        <div style="font-size:26px;font-weight:750;letter-spacing:-.02em"><span id="sigState">&mdash;</span></div>
+        <div class="sub">Hedge score <b id="sigScore">&mdash;</b> / 1.0</div>
+      </div>
+      <div>
+        <div class="alloc-bars" id="sigAlloc"></div>
+        <div class="sub" id="sigBreak" style="margin-top:6px"></div>
+      </div>
+      <div style="text-align:right">
+        <div id="sigRebal" style="font-weight:700"></div>
+        <button class="btn ghost" id="btnExportCfg" style="margin-top:8px">Export config for alerts</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid">
+    <!-- LEFT: CONTROLS -->
+    <div class="card pad controls" id="controls">
+      <div class="section-title">Strategy parameters</div>
+      <div id="controlGroups"></div>
+      <div class="btn-row">
+        <button class="btn primary" id="btnRun">Run backtest</button>
+        <button class="btn" id="btnSave">Save as new</button>
+        <button class="btn" id="btnUpdate" style="display:none">Update version</button>
+        <button class="btn ghost" id="btnReset">Reset</button>
+      </div>
+      <div class="hint" id="runStamp" style="margin-top:8px;min-height:14px"></div>
+    </div>
+
+    <!-- RIGHT: RESULTS -->
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <!-- plain english + NL -->
+      <div class="card pad">
+        <div class="section-title">Plain-English rules <span style="text-transform:none;color:var(--muted)">&mdash; updates as you tweak</span></div>
+        <div class="summary" id="summary"></div>
+        <div class="section-title" style="margin-top:14px">Tweak in plain English</div>
+        <div class="nl-box">
+          <input id="nlInput" placeholder="e.g. raise the VIX switch to 45 and make the bull allocation 80%">
+          <button class="btn primary" id="btnNl">Apply</button>
+        </div>
+        <div class="nl-status" id="nlStatus"></div>
+      </div>
+
+      <!-- KPIs -->
+      <div class="card pad">
+        <div class="section-title">Current strategy &mdash; headline metrics</div>
+        <div class="kpis" id="kpis"></div>
+      </div>
+
+      <!-- CHARTS -->
+      <div class="card pad">
+        <div class="tabs" id="chartTabs">
+          <div class="tab active" data-chart="equity">Growth of $100k</div>
+          <div class="tab" data-chart="drawdown">Drawdown</div>
+          <div class="tab" data-chart="alloc">Allocation over time</div>
+          <div class="tab" data-chart="annual">Annual returns</div>
+        </div>
+        <div class="chart-wrap" id="chartHost"><canvas id="mainChart"></canvas></div>
+        <div style="display:flex;gap:14px;align-items:center;margin-top:8px;flex-wrap:wrap">
+          <label class="switch" style="font-size:12px"><input type="checkbox" id="logScale" checked> Log scale</label>
+          <span class="legend-note" id="chartNote"></span>
+        </div>
+        <div class="versions" id="versionChips"></div>
+      </div>
+
+      <!-- COMPARISON TABLE -->
+      <div class="card pad">
+        <div class="section-title">Metrics comparison &mdash; strategy vs benchmarks vs saved versions</div>
+        <div id="taxNote" class="callout" style="display:none;margin:0 0 10px"></div>
+        <div id="compareSel" class="legend-note" style="margin:0 0 10px"></div>
+        <div class="scroll-x"><table class="cmp" id="cmpTable"></table></div>
+        <div class="legend-note" style="margin-top:8px">Green = best in row, red = worst. Risk metrics (drawdown, volatility, VaR) treat the less-negative / lower value as better.</div>
+      </div>
+
+      <!-- ALERTS / SETUP -->
+      <div class="card pad">
+        <div class="section-title">Live rebalance alerts (email + Telegram via GitHub Actions)</div>
+        <div id="alertsHost"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot" id="foot"></div>
+</div>
+
+<script>/*__ENGINE__*/</script>
+<script>window.DATA=/*__DATA__*/;</script>
+<script>/*__UI__*/</script>
+</body>
+</html>

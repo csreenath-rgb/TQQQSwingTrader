@@ -1,0 +1,66 @@
+name: CI — test & deploy dashboard
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build-test-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "20" }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - name: Install dependencies
+        run: npm install
+      - name: Build dashboard
+        run: node build.js
+      - name: Run test suite (engine + UI + alert script)
+        run: |
+          set -o pipefail
+          {
+            echo "=== engine tests ==="; node test/test_engine.js
+            echo "=== UI tests ===";     node test/test_ui.js
+            echo "=== alert script compiles ==="; python -m py_compile alerts/check_signal.py && echo "py_compile OK"
+          } 2>&1 | tee ci-output.txt
+      - name: Configure Pages
+        if: github.event_name != 'pull_request'
+        uses: actions/configure-pages@v5
+      - name: Upload Pages artifact
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v3
+        with: { path: "public" }
+      - name: Deploy to GitHub Pages
+        id: deploy
+        if: github.event_name != 'pull_request'
+        uses: actions/deploy-pages@v4
+      - name: Email admin on failure
+        if: failure()
+        env:
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          CI_ADMIN_EMAIL: ${{ secrets.CI_ADMIN_EMAIL }}
+          ALERT_TO: ${{ secrets.ALERT_TO }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          COMMIT: ${{ github.sha }}
+          ACTOR: ${{ github.actor }}
+        run: python ci/notify_failure.py
