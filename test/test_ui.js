@@ -5,9 +5,9 @@ let html = fs.readFileSync(path.join(__dirname, "../index.html"), "utf8")
 const errs = [];
 class StubChart { constructor() { StubChart.n++; } destroy() {} update() {} }
 StubChart.n = 0;
-const dom = new JSDOM(html, { runScripts: "dangerously", pretendToBeVisual: true, beforeParse(w) {
+const dom = new JSDOM(html, { runScripts: "dangerously", pretendToBeVisual: true, url: "https://test.local/", beforeParse(w) {
   w.Chart = StubChart; w.structuredClone = global.structuredClone; w.requestAnimationFrame = cb => setTimeout(cb, 0);
-  w.HTMLCanvasElement.prototype.getContext = () => ({}); w.prompt = () => "vTest"; w.confirm = () => true;
+  w.HTMLCanvasElement.prototype.getContext = () => ({}); w.prompt = () => "vTest"; w.confirm = () => true; w.URL.createObjectURL = () => "blob:test"; w.URL.revokeObjectURL = () => {};
   w.addEventListener("error", e => errs.push(e.error && e.error.stack || e.message));
 } });
 const doc = dom.window.document; let fails = 0;
@@ -32,6 +32,15 @@ setTimeout(() => {
   ok("tax note visible (taxable)", doc.getElementById("taxNote").style.display !== "none" && txt("taxNote").toLowerCase().includes("after-tax"));
   ok("Pretax CAGR row present", txt("cmpTable").includes("Pretax CAGR"));
   ok("compare selector rendered", txt("compareSel").includes("QQQ") && txt("compareSel").includes("TQQQ"));
+  ok("md/pdf export buttons present", !!doc.getElementById("btnExportMd") && !!doc.getElementById("btnPdf"));
+  ok("theme toggle present", !!doc.getElementById("themeToggle"));
+  ok("paper trading panel present", !!doc.getElementById("btnPaperConnect") && !!doc.getElementById("btnPaperExec"));
+  doc.getElementById("themeToggle").click();
+  ok("dark mode applied on toggle", doc.body.classList.contains("dark"));
+  doc.getElementById("themeToggle").click();
+  ok("toggles back to light", !doc.body.classList.contains("dark"));
+  let mdThrew=false; try { doc.getElementById("btnExportMd").click(); } catch(e){ mdThrew=true; errs.push(e.stack); }
+  ok("export .md no-throw", !mdThrew);
   ok("signal shows ADX & ER", txt("sigBreak").includes("ADX") && txt("sigBreak").includes("ER "));
   ok("chart instantiated", StubChart.n >= 1);
 

@@ -38,7 +38,8 @@ jobs:
           {
             echo "=== engine tests ==="; node test/test_engine.js
             echo "=== UI tests ===";     node test/test_ui.js
-            echo "=== alert script compiles ==="; python -m py_compile alerts/check_signal.py && echo "py_compile OK"
+            echo "=== paper planner tests ==="; node test/test_paper.mjs
+            echo "=== alert script compiles ==="; python -m py_compile alerts/check_signal.py alerts/paper_rebalance.py && echo "py_compile OK"
           } 2>&1 | tee ci-output.txt
       - name: Configure Pages
         if: github.event_name != 'pull_request'

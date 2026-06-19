@@ -12,8 +12,29 @@
   --accent:#2563eb; --accent2:#0ea5e9; --green:#16a34a; --red:#dc2626; --amber:#d97706;
   --tqqq:#2563eb; --sqqq:#dc2626; --jepq:#16a34a; --tlt:#7c3aed; --qqq:#64748b; --strat:#0f172a;
   --shadow:0 1px 3px rgba(16,24,40,.06),0 1px 2px rgba(16,24,40,.04);
+  --tick:#64748b; --grid:#eef1f5;
   --radius:12px;
 }
+body.dark{
+  color-scheme:dark;
+  --bg:#0b1120; --card:#151c2c; --ink:#e6ebf4; --muted:#93a1b5; --line:#2a3446;
+  --accent:#3b82f6; --green:#34d399; --red:#f87171; --amber:#fbbf24;
+  --tick:#8a97ab; --grid:#222c3c;
+  --shadow:0 1px 3px rgba(0,0,0,.45),0 1px 2px rgba(0,0,0,.3);
+}
+body.dark .kpi, body.dark .summary, body.dark .callout{ background:#141c2b; }
+body.dark .callout.warn{ background:#2a2510; }
+body.dark .badge, body.dark .tab.active{ background:#1d2c4d; color:#c7d7ff; border-color:#2f4063; }
+body.dark .btn{ background:#1b2436; }
+body.dark .btn:hover{ background:#1f2a40; border-color:#3a4763; }
+body.dark .btn.primary{ background:var(--accent); border-color:var(--accent); color:#fff; }
+body.dark .ctl input[type=number], body.dark .ctl input[type=date], body.dark .ctl select, body.dark .nl-box input{ background:#1b2436; color:var(--ink); }
+body.dark .lookup-table input{ color:var(--ink); }
+body.dark .chip{ background:#1b2436; }
+body.dark table.cmp tr:hover td{ background:#1f2a40; }
+body.dark .cell-best{ background:#0e2c22; color:#6ee7b7; }
+body.dark .cell-worst{ background:#3a1620; color:#fca5a5; }
+body.dark code{ background:#1b2436; }
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
 h1,h2,h3{margin:0;font-weight:650;letter-spacing:-.01em}
@@ -102,6 +123,7 @@ details summary{cursor:pointer;font-weight:600;font-size:12.5px;color:var(--acce
       <div class="sub" id="subTitle">70% Engine (TQQQ/SQQQ) + 30% Anchor (JEPQ) · VIX safety &rarr; TLT · benchmarked vs QQQ &amp; TQQQ</div>
     </div>
     <div style="text-align:right">
+      <button class="btn ghost" id="themeToggle" style="font-size:11px;padding:4px 10px;margin-bottom:6px">&#127769; Dark</button><br>
       <span class="badge" id="dataBadge">data &hellip;</span>
       <div class="sub" style="margin-top:4px" id="envNote"></div>
     </div>
@@ -174,6 +196,13 @@ details summary{cursor:pointer;font-weight:600;font-size:12.5px;color:var(--acce
           <span class="legend-note" id="chartNote"></span>
         </div>
         <div class="versions" id="versionChips"></div>
+        <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn ghost" id="btnExportVers" style="font-size:11px;padding:5px 9px">Export all (.json)</button>
+          <button class="btn ghost" id="btnImportVers" style="font-size:11px;padding:5px 9px">Import (.json/.md)</button>
+          <button class="btn ghost" id="btnExportMd" style="font-size:11px;padding:5px 9px">Export .md</button>
+          <button class="btn ghost" id="btnPdf" style="font-size:11px;padding:5px 9px">Save as PDF</button>
+          <input type="file" id="importVersFile" accept=".json,.md,application/json,text/markdown" style="display:none">
+        </div>
       </div>
 
       <!-- COMPARISON TABLE -->
@@ -189,6 +218,12 @@ details summary{cursor:pointer;font-weight:600;font-size:12.5px;color:var(--acce
       <div class="card pad">
         <div class="section-title">Live rebalance alerts (email + Telegram via GitHub Actions)</div>
         <div id="alertsHost"></div>
+      </div>
+
+      <!-- PAPER TRADING -->
+      <div class="card pad">
+        <div class="section-title">Paper trading (Alpaca)</div>
+        <div id="paperHost"></div>
       </div>
     </div>
   </div>
@@ -556,6 +591,13 @@ details summary{cursor:pointer;font-weight:600;font-size:12.5px;color:var(--acce
   const $ = id => document.getElementById(id);
   const AINFO = META.anchors || {};
   const ALABEL = k => k.toUpperCase();
+  const cssVar = n => (getComputedStyle(document.body).getPropertyValue(n) || "").trim() || "#64748b";
+  function applyTheme(dark) {
+    document.body.classList.toggle("dark", dark);
+    const b = $("themeToggle"); if (b) b.innerHTML = dark ? "&#9728; Light" : "&#127769; Dark";
+    try { localStorage.setItem("lrs_theme", dark ? "dark" : "light"); } catch (e) {}
+    if (lastRun) renderChart(currentChartType);
+  }
 
   const PALETTE = ["#0f172a", "#0ea5e9", "#d97706", "#7c3aed", "#db2777", "#0d9488", "#65a30d"];
   const DEFAULTS = {
@@ -876,6 +918,7 @@ details summary{cursor:pointer;font-weight:600;font-size:12.5px;color:var(--acce
 
   // build one full run with pretax + after-tax (display) metrics
   function buildRun(p) {
+    p = { ...DEFAULTS, ...p };
     const bt = E.runBacktest(D, p);
     if (bt.error) return { error: bt.error };
     const taxable = p.accountType === "taxable";
@@ -972,7 +1015,7 @@ details summary{cursor:pointer;font-weight:600;font-size:12.5px;color:var(--acce
         const series = type === "equity" ? vals : E.drawdownSeries(vals);
         return { label, data: pick(alignToDates(master, dates, series)), borderColor: color, backgroundColor: type === "drawdown" ? color + "22" : "transparent", borderWidth: width || 1.6, pointRadius: 0, fill: type === "drawdown", tension: 0, spanGaps: true };
       };
-      ds.push(mk("Strategy", master, cur.eq, "#0f172a", 2.2));
+      ds.push(mk("Strategy", master, cur.eq, cssVar("--ink"), 2.2));
       versionRuns.forEach(vr => { if (compare.ver[vr.v.id] !== false) ds.push(mk(vr.v.name, vr.run.bt.dates, vr.run.eq, vr.v.color, 1.5)); });
       if (compare.qqq) ds.push(mk("QQQ", master, cur.qqqDisp, "#64748b", 1.4));
       if (compare.tqqq) ds.push(mk("TQQQ", master, cur.tqqqDisp, "#94a3b8", 1.2));
@@ -990,13 +1033,13 @@ details summary{cursor:pointer;font-weight:600;font-size:12.5px;color:var(--acce
       options: {
         responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: "index", intersect: false },
         scales: {
-          x: { type: "category", ticks: { maxTicksLimit: 10, autoSkip: true, color: "#64748b", font: { size: 10 } }, grid: { display: false } },
-          y: isAlloc ? { stacked: true, min: 0, max: 100, ticks: { callback: v => v + "%", color: "#64748b", font: { size: 10 } }, grid: { color: "#eef1f5" } }
-            : isDD ? { ticks: { callback: v => (v * 100).toFixed(0) + "%", color: "#64748b", font: { size: 10 } }, grid: { color: "#eef1f5" } }
-            : { type: $("logScale").checked ? "logarithmic" : "linear", ticks: { callback: v => moneyShort(v), color: "#64748b", font: { size: 10 } }, grid: { color: "#eef1f5" } }
+          x: { type: "category", ticks: { maxTicksLimit: 10, autoSkip: true, color: cssVar("--tick"), font: { size: 10 } }, grid: { display: false } },
+          y: isAlloc ? { stacked: true, min: 0, max: 100, ticks: { callback: v => v + "%", color: cssVar("--tick"), font: { size: 10 } }, grid: { color: cssVar("--grid") } }
+            : isDD ? { ticks: { callback: v => (v * 100).toFixed(0) + "%", color: cssVar("--tick"), font: { size: 10 } }, grid: { color: cssVar("--grid") } }
+            : { type: $("logScale").checked ? "logarithmic" : "linear", ticks: { callback: v => moneyShort(v), color: cssVar("--tick"), font: { size: 10 } }, grid: { color: cssVar("--grid") } }
         },
         plugins: {
-          legend: { position: "bottom", labels: { boxWidth: 12, boxHeight: 12, font: { size: 11 }, color: "#334155", usePointStyle: true } },
+          legend: { position: "bottom", labels: { boxWidth: 12, boxHeight: 12, font: { size: 11 }, color: cssVar("--ink"), usePointStyle: true } },
           tooltip: { callbacks: { label: c => isAlloc ? `${c.dataset.label}: ${c.parsed.y == null ? "" : c.parsed.y.toFixed(0)}%` : isDD ? `${c.dataset.label}: ${c.parsed.y == null ? "" : (c.parsed.y * 100).toFixed(1)}%` : `${c.dataset.label}: ${c.parsed.y == null ? "" : money(c.parsed.y)}` } }
         }
       }
@@ -1010,14 +1053,14 @@ details summary{cursor:pointer;font-weight:600;font-size:12.5px;color:var(--acce
     const { cur } = lastRun;
     const years = Object.keys(cur.m.yearReturns);
     const bar = (label, mm, color) => ({ label, data: years.map(y => (mm.yearReturns[y] ?? null) * 100), backgroundColor: color, borderWidth: 0, categoryPercentage: 0.8, barPercentage: 0.9 });
-    const sets = [bar("Strategy", cur.m, "#0f172a")];
+    const sets = [bar("Strategy", cur.m, cssVar("--ink"))];
     if (compare.qqq) sets.push(bar("QQQ", cur.mQ, "#64748b"));
     if (compare.tqqq) sets.push(bar("TQQQ", cur.mT, "#cbd5e1"));
     chart = new Chart($("mainChart"), {
       type: "bar", data: { labels: years, datasets: sets },
       options: { responsive: true, maintainAspectRatio: false, animation: false,
-        scales: { x: { grid: { display: false }, ticks: { color: "#64748b", font: { size: 10 } } }, y: { ticks: { callback: v => v + "%", color: "#64748b", font: { size: 10 } }, grid: { color: "#eef1f5" } } },
-        plugins: { legend: { position: "bottom", labels: { boxWidth: 12, font: { size: 11 }, color: "#334155", usePointStyle: true } }, tooltip: { callbacks: { label: c => `${c.dataset.label}: ${c.parsed.y == null ? "n/a" : c.parsed.y.toFixed(1) + "%"}` } } } }
+        scales: { x: { grid: { display: false }, ticks: { color: cssVar("--tick"), font: { size: 10 } } }, y: { ticks: { callback: v => v + "%", color: cssVar("--tick"), font: { size: 10 } }, grid: { color: cssVar("--grid") } } },
+        plugins: { legend: { position: "bottom", labels: { boxWidth: 12, font: { size: 11 }, color: cssVar("--ink"), usePointStyle: true } }, tooltip: { callbacks: { label: c => `${c.dataset.label}: ${c.parsed.y == null ? "n/a" : c.parsed.y.toFixed(1) + "%"}` } } } }
     });
     $("chartNote").innerHTML = (cur.taxable ? "After-tax c" : "C") + "alendar-year returns vs benchmarks.";
   }
@@ -1150,9 +1193,90 @@ details summary{cursor:pointer;font-weight:600;font-size:12.5px;color:var(--acce
   function persist() { try { localStorage.setItem("lrs_state_v4", JSON.stringify({ params: readParams(), versions, compare, editingVersionId })); } catch (e) {} }
   function restore() {
     try {
-      const s = JSON.parse(localStorage.getItem("lrs_state_v4"));
-      if (s && s.params) { params = { ...DEFAULTS, ...s.params }; prevAnchor = params.anchorKey; versions = s.versions || []; compare = s.compare || compare; editingVersionId = s.editingVersionId || null; }
+      let s = JSON.parse(localStorage.getItem("lrs_state_v4"));
+      let migrated = false;
+      if (!s) { for (const k of ["lrs_state_v3", "lrs_state_v2"]) { const o = JSON.parse(localStorage.getItem(k)); if (o && (o.params || (o.versions && o.versions.length))) { s = o; migrated = true; break; } } }
+      if (s) {
+        if (s.params) params = { ...DEFAULTS, ...s.params };
+        prevAnchor = params.anchorKey; versions = s.versions || []; compare = s.compare || compare; editingVersionId = s.editingVersionId || null;
+        if (migrated) try { localStorage.setItem("lrs_state_v4", JSON.stringify({ params, versions, compare, editingVersionId })); } catch (e) {}
+      }
     } catch (e) {}
+  }
+  function exportVersions() {
+    const blob = new Blob([JSON.stringify({ versions, params: readParams(), savedAt: new Date().toISOString() }, null, 2)], { type: "application/json" });
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "strategy_versions.json"; a.click();
+    setNL(versions.length + " version(s) exported. Import this file on the other dashboard (e.g. the hosted site) to carry them over.");
+  }
+  function importFile(ev) {
+    const f = ev.target.files && ev.target.files[0]; if (!f) return;
+    const rd = new FileReader();
+    rd.onload = () => {
+      let obj = null; const text = rd.result;
+      try { obj = JSON.parse(text); } catch (_) { const m = text.match(/```json\s*([\s\S]*?)```/); if (m) { try { obj = JSON.parse(m[1]); } catch (e) {} } }
+      if (!obj) { setNL("Couldn't read a strategy from that file.", true); return; }
+      let incoming = obj.versions || (Array.isArray(obj) ? obj : (obj.params ? [obj] : (obj.enginePct != null ? [{ name: f.name.replace(/\.[^.]+$/, ""), params: obj }] : [])));
+      let n = 0;
+      incoming.forEach(v => { if (v && v.params) { const id = "v" + Date.now() + "_" + (n++); versions.push({ id, name: v.name || ("import" + n), color: v.color || PALETTE[versions.length % PALETTE.length], params: { ...DEFAULTS, ...v.params } }); compare.ver[id] = true; } });
+      if (n) { persist(); run(); setNL("Imported " + n + " version(s)."); } else setNL("No strategy versions found in that file.", true);
+    };
+    rd.readAsText(f); ev.target.value = "";
+  }
+  function reportRows(p) {
+    return [
+      ["Backtest window", p.startDate + " to " + p.endDate],
+      ["Starting capital", "$" + (+p.initialCapital).toLocaleString()],
+      ["Engine / anchor", p.enginePct + "% TQQQ-SQQQ / " + (100 - p.enginePct) + "% " + ALABEL(p.anchorKey) + " (yield " + p.anchorYield + "%)"],
+      ["Rebalance", p.rebalance + ", " + (p.executeTiming === "sameClose" ? "~15m before close" : "next open") + (p.rebalance === "signal" ? ", band " + p.rebalanceBand + "%" : "")],
+      ["Trend / vol / RSI", "SMA " + p.smaWindow + "d; vol>" + p.volThresh + "% (win " + p.volWindow + "); RSI(" + p.rsiWindow + ") OB " + p.rsiOverheat + "/OS " + p.rsiOversold],
+      ["Hedge weights", "trend " + p.wTrend + ", vol " + p.wVol + ", OB " + p.wRsiHot + ", OS " + p.wRsiCold],
+      ["Whipsaw filter", p.whipsaw ? "ON (" + p.whipsawDetector + "; ADX<" + p.adxThresh + ", ER<" + p.erThresh + ")" : "off"],
+      ["VIX safety / veto", (p.safetySwitch ? "VIX>" + p.vixThresh + " to TLT" : "off") + " / " + (p.vetoRsiOversold ? "oversold veto on" : "off")],
+      ["Anchor income", p.jepqRouteIncome ? "swept into TQQQ" : "kept in anchor"],
+      ["Account / taxes", p.accountType === "taxable" ? "Taxable (ST " + p.stRate + "%, LT " + p.ltRate + "%, income " + p.incomeRate + "%)" : "Tax-advantaged (no tax)"],
+      ["Costs", p.tradingCostBps + " bps/rebalance" + (p.extraMgmtFeePct > 0 ? ", " + p.extraMgmtFeePct + "%/yr fee" : "")]
+    ];
+  }
+  function metricRows() {
+    if (!lastRun) return [];
+    const m = lastRun.cur.m, taxable = lastRun.cur.taxable;
+    const rows = [
+      ["CAGR" + (taxable ? " (after-tax)" : ""), pct(m.cagr)],
+      ["Final value", money(m.finalValue)],
+      ["Total return", pct(m.totalReturn, 0)],
+      ["Volatility (ann.)", pct(m.volA)],
+      ["Sharpe / Sortino", num(m.sharpe) + " / " + num(m.sortino)],
+      ["Max drawdown / Calmar", pct(m.maxDD) + " / " + num(m.calmar)],
+      ["Beta / Alpha vs QQQ", num(m.beta) + " / " + pct(m.alpha)],
+      ["Best / worst year", pct(m.bestYear) + " / " + pct(m.worstYear)]
+    ];
+    if (taxable) { rows.push(["Pretax CAGR / tax drag", pct(lastRun.cur.mPre.cagr) + " / " + pct(lastRun.cur.mPre.cagr - m.cagr)]); rows.push(["Total taxes / % short-term", moneyShort(lastRun.cur.bt.tax.total) + " / " + pct(lastRun.cur.bt.tax.pctShortTerm)]); }
+    return rows;
+  }
+  function buildMd() {
+    const p = readParams(), sum = ($("summary").textContent || "").trim();
+    const tbl = rows => rows.map(r => "| " + r[0] + " | " + r[1] + " |").join("\n");
+    return "# Leveraged Rotation Strategy - configuration\n\n_Generated " + new Date().toLocaleString() + " from the dashboard._\n\n## Plain-English rules\n\n" + sum +
+      "\n\n## Parameters\n\n| Setting | Value |\n|---|---|\n" + tbl(reportRows(p)) +
+      "\n\n## Backtest results (" + p.startDate + " to " + p.endDate + ")\n\n| Metric | Value |\n|---|---|\n" + tbl(metricRows()) +
+      "\n\n> Anchors before launch use a calibrated proxy. Taxes are modeled (average-cost, yearly). Educational backtest - not investment advice.\n\n<!-- machine-readable; do not edit -->\n```json\n" + JSON.stringify(p) + "\n```\n";
+  }
+  function exportMarkdown() {
+    const blob = new Blob([buildMd()], { type: "text/markdown" });
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "strategy.md"; a.click();
+    setNL("Exported strategy.md - human-readable and re-importable.");
+  }
+  function savePDF() {
+    const w = window.open("", "_blank"); if (!w) { setNL("Pop-up blocked - allow pop-ups to save as PDF.", true); return; }
+    const p = readParams();
+    const tbl = rows => "<table>" + rows.map(r => "<tr><td><b>" + r[0] + "</b></td><td>" + r[1] + "</td></tr>").join("") + "</table>";
+    const html = "<h1>Leveraged Rotation Strategy</h1><p style='color:#666'>Generated " + new Date().toLocaleString() + "</p>" +
+      "<h2>Plain-English rules</h2><p>" + ($("summary").innerHTML || "") + "</p>" +
+      "<h2>Parameters</h2>" + tbl(reportRows(p)) +
+      "<h2>Backtest results (" + p.startDate + " to " + p.endDate + ")</h2>" + tbl(metricRows()) +
+      "<p style='color:#666;font-size:11px'>Anchors before launch use a calibrated proxy. Taxes are modeled. Educational - not investment advice.</p>";
+    w.document.write("<html><head><title>Strategy</title><style>body{font:13px/1.6 -apple-system,Segoe UI,Arial;max-width:760px;margin:24px auto;padding:0 16px;color:#161a22}h1{font-size:20px;margin:0}h2{font-size:14px;margin:16px 0 6px}table{border-collapse:collapse;width:100%}td{border:1px solid #e3e8ef;padding:5px 9px;font-size:12px;vertical-align:top}</style></head><body>" + html + "<scr" + "ipt>setTimeout(function(){window.print();},350);</scr" + "ipt></body></html>");
+    w.document.close(); setNL("Opened a printable view - choose 'Save as PDF' in the print dialog.");
   }
   function exportConfig() {
     const blob = new Blob([JSON.stringify(readParams(), null, 2)], { type: "application/json" });
@@ -1175,11 +1299,78 @@ TQQQ 55% | SQQQ 15% | JEPQ 30%
       <button class="btn" id="btnExportCfg2">Export config for the alert script</button></div></div>`;
     $("btnExportCfg2").onclick = exportConfig;
   }
+  let paperCfg = { url: "", token: "" }, paperChart = null;
+  function loadPaperCfg() { try { const c = JSON.parse(localStorage.getItem("lrs_paper")); if (c) paperCfg = c; } catch (e) {} }
+  function savePaperCfg() { try { localStorage.setItem("lrs_paper", JSON.stringify(paperCfg)); } catch (e) {} }
+  function currentTargets() {
+    if (!lastRun) return [];
+    const p = readParams(), ind = lastRun.cur.bt.ind;
+    const tw = E.targetWeights(D.dates.length - 1, ind, D, p);
+    return [["TQQQ", tw.tqqq], ["SQQQ", tw.sqqq], ["TLT", tw.tlt], [ALABEL(p.anchorKey), tw.jepq]].filter(x => x[1] > 0.001).map(x => ({ symbol: x[0], weight: +x[1].toFixed(4) }));
+  }
+  async function paperFetch(path, opts) {
+    if (!paperCfg.url) throw new Error("Set your worker URL first.");
+    const o = opts || {}; o.headers = Object.assign({ "content-type": "application/json" }, o.headers || {});
+    if (paperCfg.token) o.headers["x-access-token"] = paperCfg.token;
+    const r = await fetch(paperCfg.url.replace(/\/$/, "") + path, o);
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || ("HTTP " + r.status));
+    return j;
+  }
+  function setPaperStatus(msg, warn) { const e = $("paperStatus"); if (e) { e.innerHTML = msg; e.style.color = warn ? "var(--red)" : "var(--muted)"; } }
+  async function paperConnect() {
+    setPaperStatus("Connecting&hellip;");
+    try { const d = await paperFetch("/account"); renderPaperAccount(d); setPaperStatus("Connected to your Alpaca paper account."); }
+    catch (e) { setPaperStatus("Couldn't reach the worker: " + e.message + ". (Live trading works on the hosted site; this in-app preview can't reach external services.)", true); }
+  }
+  async function paperExecute() {
+    const targets = currentTargets();
+    if (!targets.length) { setPaperStatus("Run a backtest first.", true); return; }
+    if (!window.confirm("Rebalance your Alpaca PAPER account to: " + targets.map(t => t.symbol + " " + Math.round(t.weight * 100) + "%").join(", ") + " ?")) return;
+    setPaperStatus("Submitting orders&hellip;");
+    try {
+      const r = await paperFetch("/rebalance", { method: "POST", body: JSON.stringify({ targets }) });
+      const okN = r.results.filter(x => x.ok).length, bad = r.results.filter(x => !x.ok);
+      setPaperStatus("Rebalanced: " + okN + " order(s) ok" + (bad.length ? "; " + bad.length + " failed (" + bad.map(b => b.symbol + ": " + b.error).join("; ") + ")" : "") + ".", bad.length > 0);
+      setTimeout(paperConnect, 1500);
+    } catch (e) { setPaperStatus("Rebalance failed: " + e.message, true); }
+  }
+  function renderPaperAccount(d) {
+    const host = $("paperAccount"); if (!host) return;
+    const pl = d.last_equity ? d.equity - d.last_equity : 0, plpc = d.last_equity ? pl / d.last_equity : 0;
+    const rows = (d.positions || []).map(p => "<tr><td style='text-align:left'>" + p.symbol + "</td><td>" + p.qty.toFixed(2) + "</td><td>" + money(p.market_value) + "</td><td style='color:" + (p.unrealized_pl >= 0 ? "var(--green)" : "var(--red)") + "'>" + money(p.unrealized_pl) + " (" + pct(p.unrealized_plpc) + ")</td></tr>").join("");
+    host.innerHTML = "<div class='kpis' style='grid-template-columns:repeat(3,1fr)'>" +
+      "<div class='kpi'><div class='v'>" + money(d.equity) + "</div><div class='k'>Paper equity</div></div>" +
+      "<div class='kpi'><div class='v' style='color:" + (pl >= 0 ? "var(--green)" : "var(--red)") + "'>" + money(pl) + "</div><div class='k'>Today's P&amp;L (" + pct(plpc) + ")</div></div>" +
+      "<div class='kpi'><div class='v'>" + money(d.cash) + "</div><div class='k'>Cash</div></div></div>" +
+      (rows ? "<div class='scroll-x' style='margin-top:10px'><table class='cmp'><thead><tr><th style='text-align:left'>Position</th><th>Qty</th><th>Value</th><th>Unreal. P&amp;L</th></tr></thead><tbody>" + rows + "</tbody></table></div>"
+            : "<div class='legend-note' style='margin-top:8px'>No open positions yet &mdash; click Rebalance to deploy the current target allocation.</div>") +
+      "<div class='chart-wrap short' style='height:200px;margin-top:10px'><canvas id='paperChart'></canvas></div>";
+    if (d.history && d.history.equity && d.history.equity.length > 1) {
+      const labels = d.history.timestamp.map(t => new Date(t * 1000).toISOString().slice(0, 10));
+      if (paperChart) paperChart.destroy();
+      paperChart = new Chart($("paperChart"), { type: "line", data: { labels, datasets: [{ label: "Paper equity", data: d.history.equity, borderColor: cssVar("--ink"), borderWidth: 1.8, pointRadius: 0, tension: 0, fill: false }] },
+        options: { responsive: true, maintainAspectRatio: false, animation: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { maxTicksLimit: 8, color: cssVar("--tick"), font: { size: 10 } }, grid: { display: false } }, y: { ticks: { callback: v => moneyShort(v), color: cssVar("--tick"), font: { size: 10 } }, grid: { color: cssVar("--grid") } } } } });
+    }
+  }
+  function renderPaperPanel() {
+    $("paperHost").innerHTML =
+      "<div class='callout'>Executes the strategy's current target allocation on an <b>Alpaca paper</b> account via your own Cloudflare Worker (your keys stay in the worker, never in this page). See <code>paper-worker/README.md</code> to deploy it. Live trading runs on the <b>hosted site</b>; this in-app preview can't reach external services. <i>Optional:</i> a <code>paper-rebalance</code> GitHub Action can auto-rebalance on a schedule.</div>" +
+      "<div class='ctl'><label>Worker URL</label><input id='paperUrl' placeholder='https://your-worker.workers.dev' style='width:230px'></div>" +
+      "<div class='ctl'><label>Access token <span class='hint'>(optional)</span></label><input id='paperToken' placeholder='if set on the worker' style='width:230px'></div>" +
+      "<div class='btn-row'><button class='btn' id='btnPaperConnect'>Save &amp; connect</button><button class='btn primary' id='btnPaperExec'>Rebalance paper account to current target</button></div>" +
+      "<div class='nl-status' id='paperStatus'></div><div id='paperAccount' style='margin-top:10px'></div>";
+    $("paperUrl").value = paperCfg.url || ""; $("paperToken").value = paperCfg.token || "";
+    $("btnPaperConnect").onclick = () => { paperCfg.url = $("paperUrl").value.trim(); paperCfg.token = $("paperToken").value.trim(); savePaperCfg(); paperConnect(); };
+    $("btnPaperExec").onclick = paperExecute;
+  }
+
   function init() {
     $("dataBadge").innerHTML = `${META.start} &rarr; ${META.end} &middot; ${META.n.toLocaleString()} days &middot; ${META.source}`;
     $("envNote").innerHTML = (window.cowork && window.cowork.askClaude) ? "AI plain-English editing: ON" : "AI editing off — using built-in parser";
     $("foot").innerHTML = `Anchors before their launch are calibrated proxies. Leveraged-ETF prices include fund expense ratios. Taxes are modeled (average-cost basis, yearly payment, no wash-sale rule) — an approximation, not tax advice. ADX = Average Directional Index (whipsaw); the ADX <i>anchor</i> is the Adams Diversified Equity Fund. Educational tool, not investment advice.`;
-    restore(); buildControls(); updateSummary(); renderAlerts();
+    restore(); let _theme = false; try { _theme = localStorage.getItem("lrs_theme") === "dark"; } catch (e) {} applyTheme(_theme); buildControls(); updateSummary(); renderAlerts(); loadPaperCfg(); renderPaperPanel();
+    $("themeToggle").onclick = () => applyTheme(!document.body.classList.contains("dark"));
     $("btnRun").onclick = run;
     $("btnSave").onclick = saveVersion;
     $("btnUpdate").onclick = updateVersion;
@@ -1188,6 +1379,11 @@ TQQQ 55% | SQQQ 15% | JEPQ 30%
     $("btnNl").onclick = applyNL;
     $("nlInput").addEventListener("keydown", e => { if (e.key === "Enter") applyNL(); });
     $("btnExportCfg").onclick = exportConfig;
+    $("btnExportVers").onclick = exportVersions;
+    $("btnImportVers").onclick = () => $("importVersFile").click();
+    $("importVersFile").addEventListener("change", importFile);
+    $("btnExportMd").onclick = exportMarkdown;
+    $("btnPdf").onclick = savePDF;
     $("logScale").addEventListener("change", () => renderChart(currentChartType));
     document.querySelectorAll("#chartTabs .tab").forEach(t => t.onclick = () => renderChart(t.dataset.chart));
     run();

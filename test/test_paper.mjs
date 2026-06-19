@@ -1,0 +1,14 @@
+import { planRebalance } from "../paper-worker/rebalance.mjs";
+let fails = 0; const ok = (n, c) => { console.log((c ? "PASS " : "FAIL ") + n); if (!c) fails++; };
+let p = planRebalance(100000, {}, [{ symbol: "TQQQ", weight: 0.55 }, { symbol: "SQQQ", weight: 0.15 }, { symbol: "JEPQ", weight: 0.30 }]);
+ok("fresh account: 3 buys, no closes", p.orders.length === 3 && p.closes.length === 0 && p.orders.every(o => o.side === "buy"));
+ok("fresh: TQQQ notional 55000", p.orders.find(o => o.symbol === "TQQQ").notional === 55000);
+p = planRebalance(100000, { QYLD: 30000, TQQQ: 70000 }, [{ symbol: "TQQQ", weight: 1.0 }]);
+ok("dropped symbol QYLD is closed", p.closes.includes("QYLD"));
+ok("TQQQ topped up ~30000", Math.abs(p.orders.find(o => o.symbol === "TQQQ").notional - 30000) < 1);
+p = planRebalance(100000, { TQQQ: 80000 }, [{ symbol: "TQQQ", weight: 0.7 }]);
+ok("overweight TQQQ sells ~10000", p.orders.some(o => o.symbol === "TQQQ" && o.side === "sell" && Math.abs(o.notional - 10000) < 1));
+p = planRebalance(100000, { TQQQ: 70000, JEPQ: 30000 }, [{ symbol: "TQQQ", weight: 0.7 }, { symbol: "JEPQ", weight: 0.3 }]);
+ok("already balanced: no orders/closes", p.orders.length === 0 && p.closes.length === 0);
+console.log("\n" + (fails ? fails + " FAILURES" : "ALL PAPER TESTS PASSED"));
+process.exit(fails ? 1 : 0);

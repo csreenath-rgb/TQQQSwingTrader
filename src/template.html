@@ -12,8 +12,29 @@
   --accent:#2563eb; --accent2:#0ea5e9; --green:#16a34a; --red:#dc2626; --amber:#d97706;
   --tqqq:#2563eb; --sqqq:#dc2626; --jepq:#16a34a; --tlt:#7c3aed; --qqq:#64748b; --strat:#0f172a;
   --shadow:0 1px 3px rgba(16,24,40,.06),0 1px 2px rgba(16,24,40,.04);
+  --tick:#64748b; --grid:#eef1f5;
   --radius:12px;
 }
+body.dark{
+  color-scheme:dark;
+  --bg:#0b1120; --card:#151c2c; --ink:#e6ebf4; --muted:#93a1b5; --line:#2a3446;
+  --accent:#3b82f6; --green:#34d399; --red:#f87171; --amber:#fbbf24;
+  --tick:#8a97ab; --grid:#222c3c;
+  --shadow:0 1px 3px rgba(0,0,0,.45),0 1px 2px rgba(0,0,0,.3);
+}
+body.dark .kpi, body.dark .summary, body.dark .callout{ background:#141c2b; }
+body.dark .callout.warn{ background:#2a2510; }
+body.dark .badge, body.dark .tab.active{ background:#1d2c4d; color:#c7d7ff; border-color:#2f4063; }
+body.dark .btn{ background:#1b2436; }
+body.dark .btn:hover{ background:#1f2a40; border-color:#3a4763; }
+body.dark .btn.primary{ background:var(--accent); border-color:var(--accent); color:#fff; }
+body.dark .ctl input[type=number], body.dark .ctl input[type=date], body.dark .ctl select, body.dark .nl-box input{ background:#1b2436; color:var(--ink); }
+body.dark .lookup-table input{ color:var(--ink); }
+body.dark .chip{ background:#1b2436; }
+body.dark table.cmp tr:hover td{ background:#1f2a40; }
+body.dark .cell-best{ background:#0e2c22; color:#6ee7b7; }
+body.dark .cell-worst{ background:#3a1620; color:#fca5a5; }
+body.dark code{ background:#1b2436; }
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
 h1,h2,h3{margin:0;font-weight:650;letter-spacing:-.01em}
@@ -102,6 +123,7 @@ details summary{cursor:pointer;font-weight:600;font-size:12.5px;color:var(--acce
       <div class="sub" id="subTitle">70% Engine (TQQQ/SQQQ) + 30% Anchor (JEPQ) · VIX safety &rarr; TLT · benchmarked vs QQQ &amp; TQQQ</div>
     </div>
     <div style="text-align:right">
+      <button class="btn ghost" id="themeToggle" style="font-size:11px;padding:4px 10px;margin-bottom:6px">&#127769; Dark</button><br>
       <span class="badge" id="dataBadge">data &hellip;</span>
       <div class="sub" style="margin-top:4px" id="envNote"></div>
     </div>
@@ -174,6 +196,13 @@ details summary{cursor:pointer;font-weight:600;font-size:12.5px;color:var(--acce
           <span class="legend-note" id="chartNote"></span>
         </div>
         <div class="versions" id="versionChips"></div>
+        <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn ghost" id="btnExportVers" style="font-size:11px;padding:5px 9px">Export all (.json)</button>
+          <button class="btn ghost" id="btnImportVers" style="font-size:11px;padding:5px 9px">Import (.json/.md)</button>
+          <button class="btn ghost" id="btnExportMd" style="font-size:11px;padding:5px 9px">Export .md</button>
+          <button class="btn ghost" id="btnPdf" style="font-size:11px;padding:5px 9px">Save as PDF</button>
+          <input type="file" id="importVersFile" accept=".json,.md,application/json,text/markdown" style="display:none">
+        </div>
       </div>
 
       <!-- COMPARISON TABLE -->
@@ -189,6 +218,12 @@ details summary{cursor:pointer;font-weight:600;font-size:12.5px;color:var(--acce
       <div class="card pad">
         <div class="section-title">Live rebalance alerts (email + Telegram via GitHub Actions)</div>
         <div id="alertsHost"></div>
+      </div>
+
+      <!-- PAPER TRADING -->
+      <div class="card pad">
+        <div class="section-title">Paper trading (Alpaca)</div>
+        <div id="paperHost"></div>
       </div>
     </div>
   </div>

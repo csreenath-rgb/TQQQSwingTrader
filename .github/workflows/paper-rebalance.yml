@@ -1,0 +1,29 @@
+name: Paper auto-rebalance (Alpaca)
+
+# Optional. Does nothing unless the PAPER_WORKER_URL secret is set.
+# Default: Friday 19:50 UTC (~15:50 ET in summer / ~14:50 ET in winter) - during market hours.
+on:
+  schedule:
+    - cron: "50 19 * * 5"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: paper-rebalance
+  cancel-in-progress: false
+
+jobs:
+  rebalance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Compute target & rebalance paper account
+        env:
+          PAPER_WORKER_URL: ${{ secrets.PAPER_WORKER_URL }}
+          PAPER_ACCESS_TOKEN: ${{ secrets.PAPER_ACCESS_TOKEN }}
+        run: python alerts/paper_rebalance.py

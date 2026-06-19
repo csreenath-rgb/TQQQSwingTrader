@@ -1,0 +1,10 @@
+name = "tqqq-paper-trader"
+main = "worker.js"
+compatibility_date = "2024-11-01"
+
+# Required secrets (set with `wrangler secret put NAME`):
+#   ALPACA_KEY, ALPACA_SECRET   — your Alpaca PAPER API key/secret
+#   ACCESS_TOKEN                — a random string; the dashboard must send the same value
+[vars]
+ALPACA_BASE = "https://paper-api.alpaca.markets"
+ALLOW_ORIGIN = "*"
