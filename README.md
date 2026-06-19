@@ -48,7 +48,7 @@ until a clean trend resumes. Two detectors (selectable, usable together):
 - **Efficiency Ratio** (Kaufman) — net move ÷ total path over a window; below the threshold
   (default 0.30) = choppy.
 
-Default detector is **"both"** (ADX *and* ER must agree), which triggers selectively. On
+The filter is **off by default**; switch it on in the Whipsaw controls. The default detector is **"both"** (ADX *and* ER must agree), which triggers selectively. On
 2010–2026 it lowered volatility from ~31% to ~28% and CAGR from ~24% to ~21%.
 
 ## Live rebalance alerts (email + Telegram)

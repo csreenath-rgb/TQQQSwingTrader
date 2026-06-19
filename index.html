@@ -483,7 +483,7 @@ details summary{cursor:pointer;font-weight:600;font-size:12.5px;color:var(--acce
     wTrend: 0.4, wVol: 0.3, wRsiHot: 0.3, wRsiCold: -0.3, vixThresh: 40,
     lookup: [{ h: 0, f: 0 }, { h: 0.3, f: 0.2143 }, { h: 0.4, f: 0.4 }, { h: 0.7, f: 0.7143 }, { h: 1, f: 1 }],
     vetoRsiOversold: true, safetySwitch: true, jepqRouteIncome: true,
-    whipsaw: true, whipsawDetector: "both", adxWindow: 14, adxThresh: 20, erWindow: 10, erThresh: 0.30,
+    whipsaw: false, whipsawDetector: "both", adxWindow: 14, adxThresh: 20, erWindow: 10, erThresh: 0.30,
     rebalance: "weekly", signalLagDays: 1,
     tradingCostBps: 5, extraMgmtFeePct: 0, riskFreePct: 4.3
   };
@@ -991,9 +991,9 @@ details summary{cursor:pointer;font-weight:600;font-size:12.5px;color:var(--acce
     versions.push({ id: "v" + Date.now(), name, color: PALETTE[(versions.length + 1) % PALETTE.length], params: readParams() });
     persist(); run();
   }
-  function persist() { try { localStorage.setItem("lrs_state_v2", JSON.stringify({ params: readParams(), versions })); } catch (e) {} }
+  function persist() { try { localStorage.setItem("lrs_state_v3", JSON.stringify({ params: readParams(), versions })); } catch (e) {} }
   function restore() {
-    try { const s = JSON.parse(localStorage.getItem("lrs_state_v2")); if (s && s.params) { params = { ...DEFAULTS, ...s.params }; prevAnchor = params.anchorKey; versions = s.versions || []; } } catch (e) {}
+    try { const s = JSON.parse(localStorage.getItem("lrs_state_v3")); if (s && s.params) { params = { ...DEFAULTS, ...s.params }; prevAnchor = params.anchorKey; versions = s.versions || []; } } catch (e) {}
   }
   function exportConfig() {
     const blob = new Blob([JSON.stringify(readParams(), null, 2)], { type: "application/json" });

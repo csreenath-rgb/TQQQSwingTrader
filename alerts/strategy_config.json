@@ -1,11 +1,55 @@
 {
-  "initialCapital": 100000, "startDate": "2010-02-11", "endDate": "2026-06-18",
-  "enginePct": 70, "anchorKey": "jepq", "anchorYield": 9.98,
-  "smaWindow": 50, "volWindow": 20, "volThresh": 60,
-  "rsiWindow": 14, "rsiOverheat": 75, "rsiOversold": 30,
-  "wTrend": 0.4, "wVol": 0.3, "wRsiHot": 0.3, "wRsiCold": -0.3, "vixThresh": 40,
-  "lookup": [{"h":0,"f":0},{"h":0.3,"f":0.2143},{"h":0.4,"f":0.4},{"h":0.7,"f":0.7143},{"h":1,"f":1}],
-  "vetoRsiOversold": true, "safetySwitch": true, "jepqRouteIncome": true,
-  "whipsaw": true, "whipsawDetector": "both", "adxWindow": 14, "adxThresh": 20, "erWindow": 10, "erThresh": 0.30,
-  "rebalance": "weekly", "signalLagDays": 1, "tradingCostBps": 5, "extraMgmtFeePct": 0, "riskFreePct": 4.3
+  "initialCapital": 100000,
+  "startDate": "2010-02-11",
+  "endDate": "2026-06-18",
+  "enginePct": 70,
+  "anchorKey": "jepq",
+  "anchorYield": 9.98,
+  "smaWindow": 50,
+  "volWindow": 20,
+  "volThresh": 60,
+  "rsiWindow": 14,
+  "rsiOverheat": 75,
+  "rsiOversold": 30,
+  "wTrend": 0.4,
+  "wVol": 0.3,
+  "wRsiHot": 0.3,
+  "wRsiCold": -0.3,
+  "vixThresh": 40,
+  "lookup": [
+    {
+      "h": 0,
+      "f": 0
+    },
+    {
+      "h": 0.3,
+      "f": 0.2143
+    },
+    {
+      "h": 0.4,
+      "f": 0.4
+    },
+    {
+      "h": 0.7,
+      "f": 0.7143
+    },
+    {
+      "h": 1,
+      "f": 1
+    }
+  ],
+  "vetoRsiOversold": true,
+  "safetySwitch": true,
+  "jepqRouteIncome": true,
+  "whipsaw": false,
+  "whipsawDetector": "both",
+  "adxWindow": 14,
+  "adxThresh": 20,
+  "erWindow": 10,
+  "erThresh": 0.3,
+  "rebalance": "weekly",
+  "signalLagDays": 1,
+  "tradingCostBps": 5,
+  "extraMgmtFeePct": 0,
+  "riskFreePct": 4.3
 }
