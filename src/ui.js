@@ -585,6 +585,7 @@
     });
     const cfgSel = $("cfgVerSel");
     if (cfgSel) { const keep = cfgSel.value; cfgSel.innerHTML = cfgVerOptions(); if ([...cfgSel.options].some(o => o.value === keep)) cfgSel.value = keep; }
+    renderAlertStratList();
   }
   function loadVersion(id) {
     const v = versions.find(x => x.id === id); if (!v) return;
@@ -698,9 +699,11 @@
   }
   function exportConfig(p, label) {
     p = (p && p.enginePct != null) ? p : readParams();
-    const blob = new Blob([JSON.stringify(p, null, 2)], { type: "application/json" });
+    const nm = label || prompt("Name this default strategy (appears in alerts):", "My strategy") || "My strategy";
+    const named = { ...p, name: nm };
+    const blob = new Blob([JSON.stringify(named, null, 2)], { type: "application/json" });
     const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "strategy_config.json"; a.click();
-    setNL('Exported strategy_config.json' + (label ? ' for the saved version "' + label + '"' : ' (current controls)') + " — commit it to alerts/ in your repo so the alert workflow monitors these exact parameters.");
+    setNL('Exported "' + nm + '" as strategy_config.json — commit it as alerts/strategy_config.json. It becomes the default the alerts & paper rebalance fall back to, and its name now shows in the alerts.');
   }
   function cfgVerOptions() { return ['<option value="__current">Current (live controls)</option>'].concat(versions.map(v => `<option value="${v.id}">${v.name}</option>`)).join(""); }
   function renderAlerts() {
@@ -716,7 +719,7 @@
 State: Weakness (score 0.30)
 TQQQ 55% | SQQQ 15% | JEPQ 30%
 (was TQQQ 70% | JEPQ 30%)</pre>
-      <div style="margin-top:8px"><b>Export a strategy for the alert script</b><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;align-items:center"><select id="cfgVerSel" style="min-width:200px;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);font:inherit"></select><button class="btn" id="btnExportCfg2">Export config for the alert script</button></div><div class="hint" style="margin-top:5px">The workflow watches one strategy at a time. Pick the current controls or any saved version.</div></div></div></div>`;
+      <div style="margin-top:8px"><b>Set the default strategy (alerts &amp; paper rebalance)</b><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;align-items:center"><select id="cfgVerSel" style="min-width:200px;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);font:inherit"></select><button class="btn" id="btnExportCfg2">Export default config (.json)</button></div><div class="hint" style="margin-top:5px">Pick the current controls or a saved version, export, and commit it as <code>alerts/strategy_config.json</code>. This is the default the automation uses when no multi-strategy list is set; its name appears in the alerts.</div></div></div></div><div style="margin-top:12px"><b>Monitor multiple strategies (tagged alerts)</b><div id="alertStratList" style="margin-top:6px"></div><button class="btn" id="btnExportStrats" style="margin-top:6px">Export strategies.json (selected)</button><div class="hint" style="margin-top:5px">Tick the saved versions to monitor, export, then commit the file as <code>alerts/strategies.json</code> — each sends its own name-tagged alert when its allocation changes. If this file is absent, the single default above is used.</div></div>`;
     $("cfgVerSel").innerHTML = cfgVerOptions();
     $("btnExportCfg2").onclick = () => {
       const id = $("cfgVerSel").value;
@@ -724,6 +727,26 @@ TQQQ 55% | SQQQ 15% | JEPQ 30%
       const v = versions.find(x => x.id === id);
       exportConfig(v ? { ...DEFAULTS, ...v.params } : null, v ? v.name : null);
     };
+    renderAlertStratList();
+    $("btnExportStrats").onclick = exportStrategies;
+  }
+  function alertSel() { try { return JSON.parse(localStorage.getItem("lrs_alert_sel")) || {}; } catch (e) { return {}; } }
+  function saveAlertSel(s) { try { localStorage.setItem("lrs_alert_sel", JSON.stringify(s)); } catch (e) {} }
+  function renderAlertStratList() {
+    const host = $("alertStratList"); if (!host) return;
+    if (!versions.length) { host.innerHTML = "<span class='hint'>No saved versions yet — save a strategy (“Save as new”) to monitor several at once.</span>"; return; }
+    const sel = alertSel();
+    host.innerHTML = versions.map(v => "<label style='display:flex;gap:8px;align-items:center;margin:4px 0;font-size:12.5px;cursor:pointer'><input type='checkbox' data-alert='" + v.id + "'" + (sel[v.id] !== false ? " checked" : "") + "> <span class='sw' style='display:inline-block;width:10px;height:10px;border-radius:3px;background:" + v.color + "'></span> " + v.name + "</label>").join("");
+    host.querySelectorAll("[data-alert]").forEach(c => c.onchange = () => { const s = alertSel(); s[c.dataset.alert] = c.checked; saveAlertSel(s); });
+  }
+  function exportStrategies() {
+    const sel = alertSel();
+    const chosen = versions.filter(v => sel[v.id] !== false);
+    if (!chosen.length) { setNL("Tick at least one saved version to monitor.", true); return; }
+    const arr = chosen.map(v => ({ name: v.name, alert: true, params: { ...DEFAULTS, ...v.params } }));
+    const blob = new Blob([JSON.stringify(arr, null, 2)], { type: "application/json" });
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "strategies.json"; a.click();
+    setNL("Exported strategies.json with " + arr.length + " strategy(ies): " + arr.map(s => s.name).join(", ") + ". Commit it as alerts/strategies.json — each gets its own name-tagged alert.");
   }
   let paperCfg = { url: "", token: "" }, paperChart = null;
   function loadPaperCfg() { try { const c = JSON.parse(localStorage.getItem("lrs_paper")); if (c) paperCfg = c; } catch (e) {} }

@@ -3,11 +3,18 @@
 Live rebalance-signal checker for the Leveraged Rotation Strategy.
 Mirrors the dashboard engine (hedge score, VIX safety, oversold veto, and the
 ADX/Efficiency-Ratio whipsaw->TLT filter) with a selectable 30% anchor fund.
-Sends email + Telegram only when the target allocation changes. Stdlib only.
+
+Strategy input (multi-strategy):
+  - $STRATEGIES_FILE or alerts/strategies.json = strategies picked/uploaded on the
+    dashboard. Accepts an array of {name, params, alert?} OR {"strategies":[...]} OR
+    the dashboard "Export all (.json)" shape {"versions":[...]}.
+  - If that file is absent/empty, falls back to the single default strategy_config.json.
+Sends email + Telegram per strategy, only when that strategy's target allocation
+changes (state de-duplicated per strategy name). Stdlib only.
 
 Secrets via env: TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID,
                  SMTP_HOST(default smtp.gmail.com), SMTP_PORT(587), SMTP_USER, SMTP_PASS, ALERT_TO
-Usage: python check_signal.py [--force] [--dry-run] [--data file.json]
+Usage: python check_signal.py [--force] [--dry-run] [--data file.json] [--at-index N]
 """
 import os, sys, json, time, math, ssl, smtplib, urllib.request, urllib.parse
 import datetime as dt
@@ -149,53 +156,89 @@ def send_email(subject,body):
         print("[email] sent to",to); return True
     except Exception as e: print("[email] error:",e); return False
 
-def main():
-    args=sys.argv[1:]; force="--force" in args; dry="--dry-run" in args
-    data_file=args[args.index("--data")+1] if "--data" in args else None
-    p=json.load(open(CONFIG))
-    alab=p.get("anchorKey","jepq").upper()
+def load_strategies():
+    """Strategy input: $STRATEGIES_FILE or alerts/strategies.json (dashboard selection/upload);
+    falls back to the single default strategy_config.json when none is provided."""
+    path = os.environ.get("STRATEGIES_FILE") or os.path.join(HERE, "strategies.json")
+    if os.path.exists(path):
+        try:
+            raw = json.load(open(path))
+            items = raw if isinstance(raw, list) else (raw.get("strategies") or raw.get("versions") or [])
+            out = []
+            for it in items:
+                params = it.get("params", it)
+                if it.get("alert") is False: continue
+                if params.get("enginePct") is not None:
+                    out.append({"name": it.get("name", "Strategy"), "params": params})
+            if out: return out
+            print("[strategies] file had no usable strategies — using default")
+        except Exception as e:
+            print("[strategies] could not read strategies file, using default:", e)
+    cfg = json.load(open(CONFIG))
+    return [{"name": cfg.get("name", "Default"), "params": cfg}]
+
+def fetch_data(data_file):
     if data_file:
-        d=json.load(open(data_file)); dates=d["dates"]
-        tq=d["tqqq"]; vx=d["vix"]; hi=d["tqqq_high"]; lo=d["tqqq_low"]; cl=d["tqqq_close"]
-    else:
-        T=yahoo("TQQQ",ohlc=True); V=yahoo("^VIX")
-        dates=sorted(x for x in T["adj"] if x in V["adj"] and x in T["high"])
-        tq=[T["adj"][x] for x in dates]; vx=[V["adj"][x] for x in dates]
-        hi=[T["high"][x] for x in dates]; lo=[T["low"][x] for x in dates]; cl=[T["close"][x] for x in dates]
-    sma,rsi,vol=indicators(tq,int(p["smaWindow"]),int(p["rsiWindow"]),int(p["volWindow"]))
-    adx=compute_adx(hi,lo,cl,int(p.get("adxWindow",14)))
-    er=compute_er(tq,int(p.get("erWindow",10)))
-    i=len(dates)-1
-    if "--at-index" in args: i=int(args[args.index("--at-index")+1])%len(dates)
-    tw=target(tq[i],sma[i],rsi[i],vol[i],vx[i],adx[i],er[i],p); asof=dates[i]
-    bd=(f"trend {'BELOW' if (tw['sma'] and tw['price']<tw['sma']) else 'above'} {int(p['smaWindow'])}d SMA"
-        f" · vol {tw['vol']:.0f}% · RSI {tw['rsi']:.0f} · ADX {('%.0f'%tw['adx']) if tw['adx'] is not None else '?'}"
-        f" · ER {('%.2f'%tw['er']) if tw['er'] is not None else '?'} · VIX {tw['vix']:.0f}"
-        + (" · WHIPSAW→TLT" if tw['whip'] else "") + (" · VIX-safety→TLT" if tw['safety'] else "")
-        + (" · OVERSOLD-VETO" if tw['vetoed'] else ""))
-    tgt={k:round(tw[k],4) for k in ("tqqq","sqqq","jepq","tlt")}
-    prev={}
+        d = json.load(open(data_file)); dates = d["dates"]
+        return dates, d["tqqq"], d["vix"], d["tqqq_high"], d["tqqq_low"], d["tqqq_close"]
+    T = yahoo("TQQQ", ohlc=True); V = yahoo("^VIX")
+    dates = sorted(x for x in T["adj"] if x in V["adj"] and x in T["high"])
+    return (dates, [T["adj"][x] for x in dates], [V["adj"][x] for x in dates],
+            [T["high"][x] for x in dates], [T["low"][x] for x in dates], [T["close"][x] for x in dates])
+
+def evaluate(p, dates, tq, vx, hi, lo, cl, at_index=None):
+    sma, rsi, vol = indicators(tq, int(p["smaWindow"]), int(p["rsiWindow"]), int(p["volWindow"]))
+    adx = compute_adx(hi, lo, cl, int(p.get("adxWindow", 14)))
+    er = compute_er(tq, int(p.get("erWindow", 10)))
+    i = (len(dates) - 1) if at_index is None else (at_index % len(dates))
+    tw = target(tq[i], sma[i], rsi[i], vol[i], vx[i], adx[i], er[i], p)
+    bd = (f"trend {'BELOW' if (tw['sma'] and tw['price']<tw['sma']) else 'above'} {int(p['smaWindow'])}d SMA"
+          f" · vol {tw['vol']:.0f}% · RSI {tw['rsi']:.0f} · ADX {('%.0f'%tw['adx']) if tw['adx'] is not None else '?'}"
+          f" · ER {('%.2f'%tw['er']) if tw['er'] is not None else '?'} · VIX {tw['vix']:.0f}"
+          + (" · WHIPSAW→TLT" if tw['whip'] else "") + (" · VIX-safety→TLT" if tw['safety'] else "")
+          + (" · OVERSOLD-VETO" if tw['vetoed'] else ""))
+    return dates[i], tw, bd
+
+def main():
+    args = sys.argv[1:]; force = "--force" in args; dry = "--dry-run" in args
+    data_file = args[args.index("--data")+1] if "--data" in args else None
+    at_index = int(args[args.index("--at-index")+1]) if "--at-index" in args else None
+    strategies = load_strategies()
+    dates, tq, vx, hi, lo, cl = fetch_data(data_file)
+    state = {}
     if os.path.exists(STATE):
-        try: prev=json.load(open(STATE))
-        except Exception: prev={}
-    pw_=prev.get("target",{}); drift=sum(abs(tgt[k]-pw_.get(k,0)) for k in tgt); changed=drift>0.005
-    head="Whipsaw → TLT" if tw['whip'] else tw['state']
-    print(f"as of {asof}: {head} (score {tw['h']:.2f}) -> {pctw(tw,alab)}")
-    print("  "+bd); print(f"  changed vs last: {changed} (drift {drift:.3f})")
-    if changed or force:
-        prev_str=pctw({**tw,**{k:pw_.get(k,0) for k in tgt}},alab) if pw_ else "n/a (first run)"
-        subject=f"[Strategy] REBALANCE → {head} ({pctw(tw,alab)})"
-        body=(f"LEVERAGED ROTATION — REBALANCE SIGNAL\nAs of {asof}\n\n"
-              f"State : {head}  (hedge score {tw['h']:.2f} / 1.0)\n"
-              f"Target: {pctw(tw,alab)}\nPrev  : {prev_str}\n\nSignals: {bd}\n\n"
-              f"Anchor sleeve = {alab}. Signal as of Friday close → execute Monday open.\n"
-              f"Educational tool, not investment advice.")
-        if dry: print("\n--- DRY RUN, would send ---\n"+subject+"\n\n"+body)
-        else: send_telegram(body); send_email(subject,body)
-    else: print("  no change — no alert sent")
+        try: state = json.load(open(STATE))
+        except Exception: state = {}
+    if not isinstance(state.get("strategies"), dict):
+        old = state if state.get("target") else {}
+        state = {"strategies": ({"Default": old} if old else {})}
+    sstate = state["strategies"]
+    print(f"Evaluating {len(strategies)} strategy(ies): " + ", ".join(s["name"] for s in strategies))
+    for s in strategies:
+        name = s["name"]; p = dict(s["params"]); alab = p.get("anchorKey","jepq").upper()
+        asof, tw, bd = evaluate(p, dates, tq, vx, hi, lo, cl, at_index)
+        tgt = {k: round(tw[k],4) for k in ("tqqq","sqqq","jepq","tlt")}
+        prev = sstate.get(name, {}); pw_ = prev.get("target", {})
+        drift = sum(abs(tgt[k]-pw_.get(k,0)) for k in tgt); changed = drift > 0.005
+        head = "Whipsaw → TLT" if tw["whip"] else tw["state"]
+        tag = f"{name}  [{int(p['enginePct'])}% engine / {alab} anchor]"
+        print(f"[{name}] as of {asof}: {head} (score {tw['h']:.2f}) -> {pctw(tw,alab)}  changed={changed} (drift {drift:.3f})")
+        print("   " + bd)
+        if changed or force:
+            prev_str = pctw({**tw, **{k:pw_.get(k,0) for k in tgt}}, alab) if pw_ else "n/a (first run)"
+            subject = f"[Strategy] {name}: REBALANCE → {head} ({pctw(tw,alab)})"
+            body = (f"LEVERAGED ROTATION — REBALANCE SIGNAL\nStrategy: {tag}\nAs of {asof}\n\n"
+                    f"State : {head}  (hedge score {tw['h']:.2f} / 1.0)\n"
+                    f"Target: {pctw(tw,alab)}\nPrev  : {prev_str}\n\nSignals: {bd}\n\n"
+                    f"Anchor sleeve = {alab}. Signal as of Friday close → execute Monday open.\n"
+                    f"Educational tool, not investment advice.")
+            if dry: print("\n--- DRY RUN, would send ---\n"+subject+"\n\n"+body+"\n")
+            else: send_telegram(body); send_email(subject,body)
+        else:
+            print("   no change — no alert sent")
+        sstate[name] = {"asof": asof, "state": head, "score": round(tw["h"],4), "target": tgt,
+                        "breakdown": bd, "updated": dt.datetime.utcnow().isoformat()+"Z"}
     if not dry and not data_file:
-        json.dump({"asof":asof,"state":head,"score":round(tw["h"],4),"target":tgt,"breakdown":bd,
-                   "updated":dt.datetime.utcnow().isoformat()+"Z"},open(STATE,"w"),indent=2)
-        print("  state.json updated")
+        json.dump(state, open(STATE,"w"), indent=2); print("state.json updated")
 
 if __name__=="__main__": main()

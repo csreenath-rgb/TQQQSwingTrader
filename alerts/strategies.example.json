@@ -1,0 +1,28 @@
+[
+  {
+    "name": "Baseline 70/30 JEPQ",
+    "alert": true,
+    "params": {
+      "enginePct": 70, "anchorKey": "jepq",
+      "smaWindow": 50, "volWindow": 20, "volThresh": 60,
+      "rsiWindow": 14, "rsiOverheat": 75, "rsiOversold": 30,
+      "wTrend": 0.4, "wVol": 0.3, "wRsiHot": 0.3, "wRsiCold": -0.3, "vixThresh": 40,
+      "lookup": [{"h":0,"f":0},{"h":0.3,"f":0.2143},{"h":0.4,"f":0.4},{"h":0.7,"f":0.7143},{"h":1,"f":1}],
+      "vetoRsiOversold": true, "safetySwitch": true,
+      "whipsaw": false, "whipsawDetector": "both", "adxWindow": 14, "adxThresh": 20, "erWindow": 10, "erThresh": 0.30
+    }
+  },
+  {
+    "name": "Aggressive 90/10 SCHD",
+    "alert": true,
+    "params": {
+      "enginePct": 90, "anchorKey": "schd",
+      "smaWindow": 50, "volWindow": 20, "volThresh": 60,
+      "rsiWindow": 14, "rsiOverheat": 75, "rsiOversold": 30,
+      "wTrend": 0.4, "wVol": 0.3, "wRsiHot": 0.3, "wRsiCold": -0.3, "vixThresh": 40,
+      "lookup": [{"h":0,"f":0},{"h":0.3,"f":0.2143},{"h":0.4,"f":0.4},{"h":0.7,"f":0.7143},{"h":1,"f":1}],
+      "vetoRsiOversold": true, "safetySwitch": true,
+      "whipsaw": false, "whipsawDetector": "both", "adxWindow": 14, "adxThresh": 20, "erWindow": 10, "erThresh": 0.30
+    }
+  }
+]
