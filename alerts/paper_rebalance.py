@@ -65,7 +65,8 @@ def main():
             res = json.load(r)
         if res.get("canceled"): print(f"Cancelled {res['canceled']} stale order(s) first.")
         print("Worker result:", json.dumps(res.get("results", res))[:1800])
-        notify_rebalance(pname, dates[i], summary, res)
+        try: notify_rebalance(pname, dates[i], summary, res)
+        except Exception as ne: print("[email] notify failed (rebalance already executed):", ne)
     except urllib.error.HTTPError as e:
         body = e.read().decode("utf-8", "replace")[:400]
         print(f"Rebalance call failed: HTTP {e.code} {e.reason} | worker said: {body}")

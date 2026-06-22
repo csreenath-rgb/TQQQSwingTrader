@@ -145,7 +145,7 @@ def send_telegram(text):
     except Exception as e: print("[telegram] error:",e); return False
 
 def send_email(subject,body):
-    host=os.environ.get("SMTP_HOST","smtp.gmail.com"); port=int(os.environ.get("SMTP_PORT","587"))
+    host=os.environ.get("SMTP_HOST","").strip() or "smtp.gmail.com"; port=int(os.environ.get("SMTP_PORT","").strip() or "587")
     user=os.environ.get("SMTP_USER"); pw=os.environ.get("SMTP_PASS"); to=os.environ.get("ALERT_TO")
     if not user or not pw or not to: print("[email] secrets not set — skipping"); return False
     msg=MIMEText(body); msg["Subject"]=subject; msg["From"]=user; msg["To"]=to
