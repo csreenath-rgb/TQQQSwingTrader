@@ -7,7 +7,7 @@ Worker's /rebalance endpoint. No-op (just prints targets) if PAPER_WORKER_URL is
 Env: PAPER_WORKER_URL  (your Cloudflare Worker URL)
      PAPER_ACCESS_TOKEN (the worker's ACCESS_TOKEN, if set)
 """
-import os, sys, json, urllib.request
+import os, sys, json, urllib.request, urllib.error, urllib.parse
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import check_signal as cs
@@ -31,13 +31,21 @@ def main():
     url = os.environ.get("PAPER_WORKER_URL"); tok = os.environ.get("PAPER_ACCESS_TOKEN")
     if not url:
         print("PAPER_WORKER_URL not set - computed targets only, no orders placed."); return
+    print(f"Worker host: {urllib.parse.urlparse(url).netloc} | access token present: {bool(tok)} (length {len(tok or '')})")
     headers = {"content-type": "application/json"}
     if tok: headers["x-access-token"] = tok
     req = urllib.request.Request(url.rstrip("/") + "/rebalance", data=json.dumps({"targets": targets}).encode(), headers=headers)
     try:
         with urllib.request.urlopen(req, timeout=60) as r:
             res = json.load(r)
-        print("Worker result:", json.dumps(res.get("results", res))[:1500])
+        if res.get("canceled"): print(f"Cancelled {res['canceled']} stale order(s) first.")
+        print("Worker result:", json.dumps(res.get("results", res))[:1800])
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8", "replace")[:400]
+        print(f"Rebalance call failed: HTTP {e.code} {e.reason} | worker said: {body}")
+        if e.code == 403:
+            print("  403 = the worker rejected the token. PAPER_ACCESS_TOKEN must EXACTLY equal the worker's ACCESS_TOKEN (no trailing space/newline), and PAPER_WORKER_URL must point to that same worker.")
+        sys.exit(1)
     except Exception as e:
         print("Rebalance call failed:", e); sys.exit(1)
 

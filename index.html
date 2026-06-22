@@ -1348,9 +1348,18 @@ TQQQ 55% | SQQQ 15% | JEPQ 30%
     try {
       const r = await paperFetch("/rebalance", { method: "POST", body: JSON.stringify({ targets }) });
       const okN = r.results.filter(x => x.ok).length, bad = r.results.filter(x => !x.ok);
-      setPaperStatus("Rebalanced: " + okN + " order(s) ok" + (bad.length ? "; " + bad.length + " failed (" + bad.map(b => b.symbol + ": " + b.error).join("; ") + ")" : "") + ".", bad.length > 0);
+      setPaperStatus("Rebalanced: " + okN + " order(s) ok" + (bad.length ? "; " + bad.length + " failed" : "") + (r.canceled ? "; cancelled " + r.canceled + " stale order(s) first" : "") + ".", bad.length > 0);
+      renderPaperResult(r);
       setTimeout(paperConnect, 1500);
-    } catch (e) { setPaperStatus("Rebalance failed: " + e.message, true); }
+    } catch (e) { setPaperStatus("Rebalance failed: " + e.message, true); renderPaperResult({ results: [{ symbol: "(request)", error: e.message, ok: false }] }); }
+  }
+  function renderPaperResult(r) {
+    const host = $("paperResult"); if (!host) return;
+    const res = r.results || [];
+    if (!res.length) { host.innerHTML = ""; return; }
+    const rows = res.map(x => "<tr><td style='text-align:left'>" + (x.symbol || "") + "</td><td style='text-align:left'>" + (x.action || x.side || "") + "</td><td>" + (x.notional != null ? money(x.notional) : "&mdash;") + "</td><td style='font-weight:700;color:" + (x.ok ? "var(--green)" : "var(--red)") + "'>" + (x.ok ? "ok" : "FAILED") + "</td><td style='text-align:left;color:var(--red)'>" + (x.error || "") + "</td></tr>").join("");
+    host.innerHTML = "<div class='callout" + (res.some(x => !x.ok) ? " warn" : "") + "' style='margin-top:10px'><b>Order results</b>" + (r.canceled ? " &middot; cancelled " + r.canceled + " stale order(s) first" : "") +
+      "<div class='scroll-x' style='margin-top:6px'><table class='cmp'><thead><tr><th style='text-align:left'>Symbol</th><th style='text-align:left'>Side</th><th>Amount</th><th>Status</th><th style='text-align:left'>Detail</th></tr></thead><tbody>" + rows + "</tbody></table></div></div>";
   }
   function renderPaperAccount(d) {
     const host = $("paperAccount"); if (!host) return;
@@ -1376,7 +1385,7 @@ TQQQ 55% | SQQQ 15% | JEPQ 30%
       "<div class='ctl'><label>Worker URL</label><input id='paperUrl' placeholder='https://your-worker.workers.dev' style='width:230px'></div>" +
       "<div class='ctl'><label>Access token <span class='hint'>(optional)</span></label><input id='paperToken' placeholder='if set on the worker' style='width:230px'></div>" +
       "<div class='btn-row'><button class='btn' id='btnPaperConnect'>Save &amp; connect</button><button class='btn primary' id='btnPaperExec'>Rebalance paper account to current target</button></div>" +
-      "<div class='nl-status' id='paperStatus'></div><div id='paperAccount' style='margin-top:10px'></div>";
+      "<div class='nl-status' id='paperStatus'></div><div id='paperResult'></div><div id='paperAccount' style='margin-top:10px'></div>";
     $("paperUrl").value = paperCfg.url || ""; $("paperToken").value = paperCfg.token || "";
     $("btnPaperConnect").onclick = () => { paperCfg.url = $("paperUrl").value.trim(); paperCfg.token = $("paperToken").value.trim(); savePaperCfg(); paperConnect(); };
     $("btnPaperExec").onclick = paperExecute;

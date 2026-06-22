@@ -36,11 +36,14 @@ export default {
         const equity = +acct.equity;
         const plan = planRebalance(equity, posMap, targets);
         const results = [];
+        let canceled = 0;
+        try { const cc = await alpaca(env, "/v2/orders", "DELETE"); if (Array.isArray(cc)) canceled = cc.length; } catch (e) {}
+        if (canceled) await new Promise(r => setTimeout(r, 1200));
         for (const sym of plan.closes) { try { await alpaca(env, "/v2/positions/" + encodeURIComponent(sym), "DELETE"); results.push({ symbol: sym, action: "close", ok: true }); } catch (e) { results.push({ symbol: sym, action: "close", ok: false, error: e.message }); } }
         const place = async ord => { try { await alpaca(env, "/v2/orders", "POST", { symbol: ord.symbol, notional: ord.notional, side: ord.side, type: "market", time_in_force: "day" }); results.push({ ...ord, ok: true }); } catch (e) { results.push({ ...ord, ok: false, error: e.message }); } };
         for (const ord of plan.orders.filter(x => x.side === "sell")) await place(ord);
         for (const ord of plan.orders.filter(x => x.side === "buy")) await place(ord);
-        return json({ ok: true, equity, plan, results }, 200, o);
+        return json({ ok: true, equity, canceled, plan, results }, 200, o);
       }
       return json({ error: "not found" }, 404, o);
     } catch (e) { return json({ error: e.message || String(e) }, 500, o); }

@@ -7,6 +7,11 @@ on:
     - cron: "45 19 * * 5"   # 15:45 ET while EDT (UTC-4)
     - cron: "45 20 * * 5"   # 15:45 ET while EST (UTC-5)
   workflow_dispatch:         # manual "Run workflow" button (use to test)
+    inputs:
+      force:
+        description: "Send a test alert even if the allocation has not changed"
+        type: boolean
+        default: false
 
 permissions:
   contents: write            # lets the job commit alerts/state.json
@@ -32,7 +37,7 @@ jobs:
           SMTP_USER:          ${{ secrets.SMTP_USER }}
           SMTP_PASS:          ${{ secrets.SMTP_PASS }}
           ALERT_TO:           ${{ secrets.ALERT_TO }}
-        run: python alerts/check_signal.py
+        run: python alerts/check_signal.py ${{ inputs.force && '--force' || '' }}
       - name: Persist updated state
         run: |
           git config user.name  "github-actions[bot]"
