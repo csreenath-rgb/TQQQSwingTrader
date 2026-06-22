@@ -13,7 +13,12 @@ sys.path.insert(0, HERE)
 import check_signal as cs
 
 def main():
-    p = json.load(open(os.path.join(HERE, "strategy_config.json")))
+    wc = cs.fetch_worker_config()
+    act = wc.get("activeStrategy") or {}
+    if (act.get("params") or {}).get("enginePct") is not None:
+        p = dict(act["params"]); p.setdefault("name", act.get("name", "Active")); print("[config] active strategy from Worker:", p["name"])
+    else:
+        p = json.load(open(os.path.join(HERE, "strategy_config.json")))
     T = cs.yahoo("TQQQ", ohlc=True); V = cs.yahoo("^VIX")
     dates = sorted(x for x in T["adj"] if x in V["adj"] and x in T["high"])
     tq = [T["adj"][x] for x in dates]; vx = [V["adj"][x] for x in dates]

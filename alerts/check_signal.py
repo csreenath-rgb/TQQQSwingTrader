@@ -156,9 +156,33 @@ def send_email(subject,body):
         print("[email] sent to",to); return True
     except Exception as e: print("[email] error:",e); return False
 
+def fetch_worker_config():
+    """Read dashboard-selected config from the Cloudflare Worker (KV). Optional; browser UA avoids Cloudflare bot block."""
+    url = os.environ.get("PAPER_WORKER_URL"); tok = os.environ.get("PAPER_ACCESS_TOKEN")
+    if not url: return {}
+    headers = {"Accept": "application/json",
+               "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"}
+    if tok: headers["x-access-token"] = tok
+    try:
+        with urllib.request.urlopen(urllib.request.Request(url.rstrip("/") + "/config", headers=headers), timeout=30) as r:
+            return json.load(r) or {}
+    except Exception as e:
+        print("[config] worker config unavailable, using files/default:", e); return {}
+
 def load_strategies():
     """Strategy input: $STRATEGIES_FILE or alerts/strategies.json (dashboard selection/upload);
     falls back to the single default strategy_config.json when none is provided."""
+    wc = fetch_worker_config()
+    if wc.get("alertStrategies"):
+        out = []
+        for it in wc["alertStrategies"]:
+            params = it.get("params", it)
+            if it.get("alert") is False: continue
+            if params.get("enginePct") is not None:
+                out.append({"name": it.get("name", "Strategy"), "params": params})
+        if out:
+            print(f"[config] using {len(out)} strategy(ies) from the Worker")
+            return out
     path = os.environ.get("STRATEGIES_FILE") or os.path.join(HERE, "strategies.json")
     if os.path.exists(path):
         try:

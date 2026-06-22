@@ -10,6 +10,7 @@ async function alpaca(env, path, method = "GET", body) {
   if (!r.ok) { const d = (j && j.message) ? j.message : (typeof j === "string" ? j : JSON.stringify(j)); throw new Error("Alpaca " + r.status + " on " + path.split("?")[0] + ": " + String(d).slice(0, 240)); }
   return j;
 }
+async function readConfig(env) { if (!env.CONFIG) return {}; try { return JSON.parse(await env.CONFIG.get("config")) || {}; } catch (e) { return {}; } }
 export default {
   async fetch(req, env) {
     const o = env.ALLOW_ORIGIN || "*";
@@ -17,7 +18,20 @@ export default {
     const url = new URL(req.url);
     if (env.ACCESS_TOKEN) { const t = req.headers.get("x-access-token") || url.searchParams.get("token"); if (t !== env.ACCESS_TOKEN) return json({ error: "unauthorized" }, 403, o); }
     try {
-      if (url.pathname === "/health") return json({ ok: true }, 200, o);
+      if (url.pathname === "/health") return json({ ok: true, kv: !!env.CONFIG }, 200, o);
+      if (url.pathname === "/config") {
+        if (!env.CONFIG) return json({ error: "KV not configured on this worker" }, 503, o);
+        if (req.method === "POST") {
+          const body = await req.json();
+          const cfg = await readConfig(env);
+          if (body.alertStrategies !== undefined) cfg.alertStrategies = body.alertStrategies;
+          if (body.activeStrategy !== undefined) cfg.activeStrategy = body.activeStrategy;
+          cfg.updated = new Date().toISOString();
+          await env.CONFIG.put("config", JSON.stringify(cfg));
+          return json({ ok: true, cfg }, 200, o);
+        }
+        return json(await readConfig(env), 200, o);
+      }
       if (url.pathname === "/account") {
         const acct = await alpaca(env, "/v2/account");
         let positions = []; try { positions = await alpaca(env, "/v2/positions"); } catch (e) {}

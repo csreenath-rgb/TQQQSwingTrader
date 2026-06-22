@@ -583,8 +583,9 @@
       if (editingVersionId === b.dataset.del) { editingVersionId = null; $("btnUpdate").style.display = "none"; }
       persist(); run();
     });
-    const cfgSel = $("cfgVerSel");
-    if (cfgSel) { const keep = cfgSel.value; cfgSel.innerHTML = cfgVerOptions(); if ([...cfgSel.options].some(o => o.value === keep)) cfgSel.value = keep; }
+    renderDashDefault();
+    const pas = $("paperActiveSel");
+    if (pas) { const k = pas.value; pas.innerHTML = cfgVerOptions(); if ([...pas.options].some(o => o.value === k)) pas.value = k; }
     renderAlertStratList();
   }
   function loadVersion(id) {
@@ -620,6 +621,8 @@
         prevAnchor = params.anchorKey; versions = s.versions || []; compare = s.compare || compare; editingVersionId = s.editingVersionId || null;
         if (migrated) try { localStorage.setItem("lrs_state_v4", JSON.stringify({ params, versions, compare, editingVersionId })); } catch (e) {}
       }
+      const dv = localStorage.getItem("lrs_default_version");
+      if (dv && dv !== "__current") { const v = versions.find(x => x.id === dv); if (v) { params = { ...DEFAULTS, ...structuredClone(v.params) }; prevAnchor = params.anchorKey; } }
     } catch (e) {}
   }
   function exportVersions() {
@@ -706,6 +709,13 @@
     setNL('Exported "' + nm + '" as strategy_config.json — commit it as alerts/strategy_config.json. It becomes the default the alerts & paper rebalance fall back to, and its name now shows in the alerts.');
   }
   function cfgVerOptions() { return ['<option value="__current">Current (live controls)</option>'].concat(versions.map(v => `<option value="${v.id}">${v.name}</option>`)).join(""); }
+  function renderDashDefault() {
+    const sel = $("cfgVerSel"); if (!sel) return;
+    let keep = sel.value; if (!keep) { try { keep = localStorage.getItem("lrs_default_version") || "__current"; } catch (e) { keep = "__current"; } }
+    sel.innerHTML = cfgVerOptions();
+    sel.value = [...sel.options].some(o => o.value === keep) ? keep : "__current";
+    if (!sel.onchange) sel.onchange = () => { try { localStorage.setItem("lrs_default_version", sel.value); } catch (e) {} if (sel.value !== "__current") loadVersion(sel.value); };
+  }
   function renderAlerts() {
     $("alertsHost").innerHTML =
       `<div class="callout">The dashboard runs <b>inside a sandbox</b> and cannot send messages itself. Live alerts run on <b>GitHub Actions</b>, which re-checks this exact signal logic on a schedule and emails/Telegrams you only when the target allocation changes.</div>
@@ -719,14 +729,7 @@
 State: Weakness (score 0.30)
 TQQQ 55% | SQQQ 15% | JEPQ 30%
 (was TQQQ 70% | JEPQ 30%)</pre>
-      <div style="margin-top:8px"><b>Set the default strategy (alerts &amp; paper rebalance)</b><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;align-items:center"><select id="cfgVerSel" style="min-width:200px;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);font:inherit"></select><button class="btn" id="btnExportCfg2">Export default config (.json)</button></div><div class="hint" style="margin-top:5px">Pick the current controls or a saved version, export, and commit it as <code>alerts/strategy_config.json</code>. This is the default the automation uses when no multi-strategy list is set; its name appears in the alerts.</div></div></div></div><div style="margin-top:12px"><b>Monitor multiple strategies (tagged alerts)</b><div id="alertStratList" style="margin-top:6px"></div><button class="btn" id="btnExportStrats" style="margin-top:6px">Export strategies.json (selected)</button><div class="hint" style="margin-top:5px">Tick the saved versions to monitor, export, then commit the file as <code>alerts/strategies.json</code> — each sends its own name-tagged alert when its allocation changes. If this file is absent, the single default above is used.</div></div>`;
-    $("cfgVerSel").innerHTML = cfgVerOptions();
-    $("btnExportCfg2").onclick = () => {
-      const id = $("cfgVerSel").value;
-      if (id === "__current") return exportConfig();
-      const v = versions.find(x => x.id === id);
-      exportConfig(v ? { ...DEFAULTS, ...v.params } : null, v ? v.name : null);
-    };
+      </div></div><div style="margin-top:12px"><b>Monitor multiple strategies (tagged alerts)</b><div id="alertStratList" style="margin-top:6px"></div><div class="nl-status" id="alertCfgStatus" style="min-height:14px;margin-top:4px"></div><div class="hint" style="margin-top:4px">Ticking auto-saves your selection to the Worker — alerts pick these up automatically, no commit needed (requires the Worker connected in the Paper section). Each sends its own name-tagged alert when its allocation changes.</div><button class="btn" id="btnExportStrats" style="margin-top:6px">Export strategies.json (manual fallback)</button></div>`;
     renderAlertStratList();
     $("btnExportStrats").onclick = exportStrategies;
   }
@@ -737,7 +740,7 @@ TQQQ 55% | SQQQ 15% | JEPQ 30%
     if (!versions.length) { host.innerHTML = "<span class='hint'>No saved versions yet — save a strategy (“Save as new”) to monitor several at once.</span>"; return; }
     const sel = alertSel();
     host.innerHTML = versions.map(v => "<label style='display:flex;gap:8px;align-items:center;margin:4px 0;font-size:12.5px;cursor:pointer'><input type='checkbox' data-alert='" + v.id + "'" + (sel[v.id] !== false ? " checked" : "") + "> <span class='sw' style='display:inline-block;width:10px;height:10px;border-radius:3px;background:" + v.color + "'></span> " + v.name + "</label>").join("");
-    host.querySelectorAll("[data-alert]").forEach(c => c.onchange = () => { const s = alertSel(); s[c.dataset.alert] = c.checked; saveAlertSel(s); });
+    host.querySelectorAll("[data-alert]").forEach(c => c.onchange = () => { const s = alertSel(); s[c.dataset.alert] = c.checked; saveAlertSel(s); pushAlertStrategies(); });
   }
   function exportStrategies() {
     const sel = alertSel();
@@ -748,14 +751,34 @@ TQQQ 55% | SQQQ 15% | JEPQ 30%
     const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "strategies.json"; a.click();
     setNL("Exported strategies.json with " + arr.length + " strategy(ies): " + arr.map(s => s.name).join(", ") + ". Commit it as alerts/strategies.json — each gets its own name-tagged alert.");
   }
+  async function pushAlertStrategies() {
+    const st = $("alertCfgStatus");
+    const sel = alertSel();
+    const chosen = versions.filter(v => sel[v.id] !== false).map(v => ({ name: v.name, alert: true, params: { ...DEFAULTS, ...v.params } }));
+    if (!paperCfg.url) { if (st) { st.innerHTML = "Selected on this device. Connect your Worker in the Paper section to auto-apply (or use Export below)."; st.style.color = "var(--amber)"; } return; }
+    if (st) { st.innerHTML = "Saving to Worker&hellip;"; st.style.color = "var(--muted)"; }
+    try { await paperFetch("/config", { method: "POST", body: JSON.stringify({ alertStrategies: chosen }) }); if (st) { st.innerHTML = "Saved " + chosen.length + " strategy(ies) to your Worker — alerts use these automatically."; st.style.color = "var(--green)"; } }
+    catch (e) { if (st) { st.innerHTML = "Couldn't save to Worker: " + e.message + " — use Export below as a fallback."; st.style.color = "var(--red)"; } }
+  }
   let paperCfg = { url: "", token: "" }, paperChart = null;
   function loadPaperCfg() { try { const c = JSON.parse(localStorage.getItem("lrs_paper")); if (c) paperCfg = c; } catch (e) {} }
   function savePaperCfg() { try { localStorage.setItem("lrs_paper", JSON.stringify(paperCfg)); } catch (e) {} }
-  function currentTargets() {
-    if (!lastRun) return [];
-    const p = readParams(), ind = lastRun.cur.bt.ind;
-    const tw = E.targetWeights(D.dates.length - 1, ind, D, p);
+  function targetsForParams(p) {
+    const run = buildRun(p); if (run.error) return [];
+    const tw = E.targetWeights(D.dates.length - 1, run.bt.ind, D, p);
     return [["TQQQ", tw.tqqq], ["SQQQ", tw.sqqq], ["TLT", tw.tlt], [ALABEL(p.anchorKey), tw.jepq]].filter(x => x[1] > 0.001).map(x => ({ symbol: x[0], weight: +x[1].toFixed(4) }));
+  }
+  function currentTargets() { return lastRun ? targetsForParams(readParams()) : []; }
+  function paperActiveParams() {
+    const id = paperCfg.activeId;
+    if (id && id !== "__current") { const v = versions.find(x => x.id === id); if (v) return { name: v.name, params: { ...DEFAULTS, ...v.params } }; }
+    return { name: "Current controls", params: readParams() };
+  }
+  async function pushActiveStrategy() {
+    const a = paperActiveParams();
+    if (!paperCfg.url) { setPaperStatus("Active strategy set locally: " + a.name + ". Connect the Worker to auto-apply to scheduled rebalancing.", false); return; }
+    try { await paperFetch("/config", { method: "POST", body: JSON.stringify({ activeStrategy: { name: a.name, params: a.params } }) }); setPaperStatus("Active strategy saved to Worker: " + a.name + " — used by the manual button and the scheduled rebalance."); }
+    catch (e) { setPaperStatus("Set locally; couldn't reach Worker: " + e.message, true); }
   }
   async function paperFetch(path, opts) {
     if (!paperCfg.url) throw new Error("Set your worker URL first.");
@@ -773,9 +796,10 @@ TQQQ 55% | SQQQ 15% | JEPQ 30%
     catch (e) { setPaperStatus("Couldn't reach the worker: " + e.message + ". (Live trading works on the hosted site; this in-app preview can't reach external services.)", true); }
   }
   async function paperExecute() {
-    const targets = currentTargets();
+    const active = paperActiveParams();
+    const targets = targetsForParams(active.params);
     if (!targets.length) { setPaperStatus("Run a backtest first.", true); return; }
-    if (!window.confirm("Rebalance your Alpaca PAPER account to: " + targets.map(t => t.symbol + " " + Math.round(t.weight * 100) + "%").join(", ") + " ?")) return;
+    if (!window.confirm("Rebalance your Alpaca PAPER account to “" + active.name + "”: " + targets.map(t => t.symbol + " " + Math.round(t.weight * 100) + "%").join(", ") + " ?")) return;
     setPaperStatus("Submitting orders&hellip;");
     try {
       const r = await paperFetch("/rebalance", { method: "POST", body: JSON.stringify({ targets }) });
@@ -816,9 +840,12 @@ TQQQ 55% | SQQQ 15% | JEPQ 30%
       "<div class='callout'>Executes the strategy's current target allocation on an <b>Alpaca paper</b> account via your own Cloudflare Worker (your keys stay in the worker, never in this page). See <code>paper-worker/README.md</code> to deploy it. Live trading runs on the <b>hosted site</b>; this in-app preview can't reach external services. <i>Optional:</i> a <code>paper-rebalance</code> GitHub Action can auto-rebalance on a schedule.</div>" +
       "<div class='ctl'><label>Worker URL</label><input id='paperUrl' placeholder='https://your-worker.workers.dev' style='width:230px'></div>" +
       "<div class='ctl'><label>Access token <span class='hint'>(optional)</span></label><input id='paperToken' placeholder='if set on the worker' style='width:230px'></div>" +
+      "<div class='ctl'><label>Active strategy <span class='hint'>(paper &amp; auto-rebalance)</span></label><select id='paperActiveSel' style='width:230px'></select></div>" +
       "<div class='btn-row'><button class='btn' id='btnPaperConnect'>Save &amp; connect</button><button class='btn primary' id='btnPaperExec'>Rebalance paper account to current target</button></div>" +
       "<div class='nl-status' id='paperStatus'></div><div id='paperResult'></div><div id='paperAccount' style='margin-top:10px'></div>";
     $("paperUrl").value = paperCfg.url || ""; $("paperToken").value = paperCfg.token || "";
+    const pas = $("paperActiveSel");
+    if (pas) { pas.innerHTML = cfgVerOptions(); pas.value = paperCfg.activeId || "__current"; pas.onchange = () => { paperCfg.activeId = pas.value; savePaperCfg(); pushActiveStrategy(); }; }
     $("btnPaperConnect").onclick = () => { paperCfg.url = $("paperUrl").value.trim(); paperCfg.token = $("paperToken").value.trim(); savePaperCfg(); paperConnect(); };
     $("btnPaperExec").onclick = paperExecute;
   }

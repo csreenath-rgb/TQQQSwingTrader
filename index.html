@@ -8,114 +8,113 @@
 <style>
 :root{
   color-scheme: light;
-  --bg:#f4f6fa; --card:#ffffff; --ink:#161a22; --muted:#5b6573; --line:#e3e8ef;
-  --accent:#2563eb; --accent2:#0ea5e9; --green:#16a34a; --red:#dc2626; --amber:#d97706;
-  --tqqq:#2563eb; --sqqq:#dc2626; --jepq:#16a34a; --tlt:#7c3aed; --qqq:#64748b; --strat:#0f172a;
-  --shadow:0 1px 3px rgba(16,24,40,.06),0 1px 2px rgba(16,24,40,.04);
-  --tick:#64748b; --grid:#eef1f5;
-  --radius:12px;
+  --bg:#f5f7fa; --card:#ffffff; --inset:#f3f6fb; --ink:#101622; --ink2:#39424f; --muted:#6b7480;
+  --line:#e3e8ef; --line2:#eef1f6;
+  --accent:#2f6bed; --accent-ink:#ffffff; --accent-soft:#e9f0fe; --accent-line:#cfe0fc;
+  --green:#15a34a; --red:#dc2626; --amber:#b9760a; --green-soft:#e6f6ec; --red-soft:#fdeaea;
+  --tqqq:#2563eb; --sqqq:#dc2626; --jepq:#16a34a; --tlt:#7c3aed; --qqq:#64748b;
+  --shadow:0 1px 2px rgba(16,24,40,.04),0 2px 8px rgba(16,24,40,.06);
+  --tick:#64748b; --grid:#eef1f5; --radius:14px; --radius-sm:9px;
 }
 body.dark{
   color-scheme:dark;
-  --bg:#0b1120; --card:#151c2c; --ink:#e6ebf4; --muted:#93a1b5; --line:#2a3446;
-  --accent:#3b82f6; --green:#34d399; --red:#f87171; --amber:#fbbf24;
-  --tick:#8a97ab; --grid:#222c3c;
-  --shadow:0 1px 3px rgba(0,0,0,.45),0 1px 2px rgba(0,0,0,.3);
+  --bg:#0a0e16; --card:#141b28; --inset:#1a2230; --ink:#e8edf5; --ink2:#c4cedb; --muted:#8b97a8;
+  --line:#283344; --line2:#1e2735;
+  --accent:#5b8bf5; --accent-ink:#0a0e16; --accent-soft:#18283f; --accent-line:#2c4368;
+  --green:#34d399; --red:#f87171; --amber:#fbbf24; --green-soft:#0e2c22; --red-soft:#3a1620;
+  --tqqq:#5b8bf5; --qqq:#94a3b8;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 2px 10px rgba(0,0,0,.35);
+  --tick:#8a97ab; --grid:#212a39;
 }
-body.dark .kpi, body.dark .summary, body.dark .callout{ background:#141c2b; }
-body.dark .callout.warn{ background:#2a2510; }
-body.dark .badge, body.dark .tab.active{ background:#1d2c4d; color:#c7d7ff; border-color:#2f4063; }
-body.dark .btn{ background:#1b2436; }
-body.dark .btn:hover{ background:#1f2a40; border-color:#3a4763; }
-body.dark .btn.primary{ background:var(--accent); border-color:var(--accent); color:#fff; }
-body.dark .ctl input[type=number], body.dark .ctl input[type=date], body.dark .ctl select, body.dark .nl-box input{ background:#1b2436; color:var(--ink); }
-body.dark .lookup-table input{ color:var(--ink); }
-body.dark .chip{ background:#1b2436; }
-body.dark table.cmp tr:hover td{ background:#1f2a40; }
-body.dark .cell-best{ background:#0e2c22; color:#6ee7b7; }
-body.dark .cell-worst{ background:#3a1620; color:#fca5a5; }
-body.dark code{ background:#1b2436; }
-body.dark .ctl label{ color:#cbd5e1; }
-body.dark .summary, body.dark .callout{ color:#cbd5e1; }
-body.dark .callout.warn{ color:#e7d9a8; }
-body.dark .summary{ background:#141c2b; }
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
-h1,h2,h3{margin:0;font-weight:650;letter-spacing:-.01em}
-a{color:var(--accent)}
-.wrap{max-width:1320px;margin:0 auto;padding:18px}
-header.top{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:14px}
-.brand h1{font-size:19px}
-.brand .sub{color:var(--muted);font-size:12.5px;margin-top:2px}
-.badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;background:#eef2ff;color:#3730a3;border:1px solid #e0e7ff}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums}
+h1,h2,h3{margin:0;font-weight:680;letter-spacing:-.015em;color:var(--ink)}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
+.wrap{max-width:1340px;margin:0 auto;padding:22px 20px 32px}
+header.top{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:18px}
+.brand h1{font-size:20px;line-height:1.25}
+.brand .sub{color:var(--muted);font-size:12.5px;margin-top:4px;max-width:760px}
+.badge{display:inline-block;padding:3px 9px;border-radius:999px;font-size:11px;font-weight:600;background:var(--accent-soft);color:var(--accent);border:1px solid var(--accent-line)}
 .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
-.pad{padding:16px}
-.grid{display:grid;grid-template-columns:380px 1fr;gap:16px;align-items:start}
+.pad{padding:18px}
+.grid{display:grid;grid-template-columns:380px 1fr;gap:18px;align-items:start}
 @media (max-width:980px){.grid{grid-template-columns:1fr}}
-.section-title{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:700;margin:0 0 10px}
-.controls .group{border-top:1px solid var(--line);padding:13px 0}
+.section-title{font-size:11.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:700;margin:0 0 12px}
+.controls .group{border-top:1px solid var(--line2);padding:14px 0}
 .controls .group:first-of-type{border-top:none;padding-top:2px}
-.ctl{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;margin:7px 0}
-.ctl label{color:#283042;font-size:12.5px}
+.ctl{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;margin:8px 0}
+.ctl label{color:var(--ink2);font-size:12.5px;font-weight:500}
 .ctl .hint{color:var(--muted);font-size:11px;font-weight:400}
-.ctl input[type=number],.ctl input[type=date],.ctl select{width:104px;padding:5px 7px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink);font:inherit;text-align:right}
-.ctl select{text-align:left;width:188px;padding-right:24px;text-overflow:ellipsis}
-.ctl input[type=range]{width:150px}
-.switch{display:inline-flex;align-items:center;gap:7px}
-.switch input{width:34px;height:18px;-webkit-appearance:none;appearance:none;background:#cbd5e1;border-radius:999px;position:relative;cursor:pointer;transition:.15s;outline:none}
-.switch input:checked{background:var(--green)}
-.switch input::after{content:"";position:absolute;width:14px;height:14px;background:#fff;border-radius:50%;top:2px;left:2px;transition:.15s}
+.ctl input[type=number],.ctl input[type=date],.ctl select{width:108px;padding:6px 8px;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--card);color:var(--ink);font:inherit;text-align:right;transition:border-color .12s,box-shadow .12s}
+.ctl select{text-align:left;width:190px;padding-right:24px;text-overflow:ellipsis}
+.ctl input:hover,.ctl select:hover{border-color:var(--muted)}
+.ctl input:focus,.ctl select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.ctl input[type=range]{width:152px;accent-color:var(--accent)}
+.switch{display:inline-flex;align-items:center;gap:8px}
+.switch input{width:36px;height:20px;-webkit-appearance:none;appearance:none;background:var(--line);border:1px solid var(--line);border-radius:999px;position:relative;cursor:pointer;transition:.15s;outline:none;flex:none}
+.switch input:checked{background:var(--green);border-color:var(--green)}
+.switch input::after{content:"";position:absolute;width:14px;height:14px;background:#fff;border-radius:50%;top:2px;left:2px;transition:.15s;box-shadow:0 1px 2px rgba(0,0,0,.3)}
 .switch input:checked::after{left:18px}
-.btn{appearance:none;border:1px solid var(--line);background:#fff;color:var(--ink);padding:9px 13px;border-radius:9px;font:inherit;font-weight:600;cursor:pointer;transition:.12s}
-.btn:hover{border-color:#cdd5df;background:#fafbfc}
-.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
-.btn.primary:hover{background:#1d4ed8}
-.btn.ghost{background:transparent}
-.btn-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
-.lookup-table{width:100%;border-collapse:collapse;font-size:12px;margin-top:6px}
-.lookup-table th,.lookup-table td{border:1px solid var(--line);padding:3px 5px;text-align:center}
-.lookup-table input{width:54px;border:none;text-align:center;font:inherit;background:transparent}
-.summary{background:#f8fafc;border:1px solid var(--line);border-radius:10px;padding:12px 13px;font-size:13px;line-height:1.55;color:#26303f}
-.summary b{color:var(--ink)}
-.nl-box{display:flex;gap:8px;margin-top:8px}
-.nl-box input{flex:1;padding:9px 11px;border:1px solid var(--line);border-radius:9px;font:inherit}
-.nl-status{font-size:12px;color:var(--muted);margin-top:6px;min-height:16px}
-.signal-banner{display:grid;grid-template-columns:auto 1fr auto;gap:16px;align-items:center}
+.btn{appearance:none;border:1px solid var(--line);background:var(--card);color:var(--ink);padding:9px 14px;border-radius:var(--radius-sm);font:inherit;font-weight:600;cursor:pointer;transition:.12s;line-height:1.2}
+.btn:hover{border-color:var(--muted);background:var(--inset)}
+.btn:active{transform:translateY(1px)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.primary:hover{filter:brightness(1.07);background:var(--accent)}
+.btn.ghost{background:transparent;border-color:transparent;color:var(--muted)}
+.btn.ghost:hover{background:var(--inset);color:var(--ink)}
+.btn-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.lookup-table{width:100%;border-collapse:collapse;font-size:12px;margin-top:8px}
+.lookup-table th,.lookup-table td{border:1px solid var(--line);padding:4px 6px;text-align:center}
+.lookup-table th{color:var(--muted);font-weight:600}
+.lookup-table input{width:56px;border:none;text-align:center;font:inherit;background:transparent;color:var(--ink)}
+.summary{background:var(--inset);border:1px solid var(--line);border-radius:var(--radius-sm);padding:13px 14px;font-size:13px;line-height:1.6;color:var(--ink2)}
+.summary b{color:var(--ink);font-weight:650}
+.nl-box{display:flex;gap:8px;margin-top:10px}
+.nl-box input{flex:1;padding:9px 12px;border:1px solid var(--line);border-radius:var(--radius-sm);font:inherit;background:var(--card);color:var(--ink)}
+.nl-box input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.nl-status{font-size:12px;color:var(--muted);margin-top:8px;min-height:16px}
+.signal-banner{display:grid;grid-template-columns:auto 1fr auto;gap:18px;align-items:center}
+@media (max-width:720px){.signal-banner{grid-template-columns:1fr}}
 .dot{width:11px;height:11px;border-radius:50%;display:inline-block;margin-right:6px;vertical-align:middle}
-.alloc-bars{display:flex;height:30px;border-radius:7px;overflow:hidden;border:1px solid var(--line);min-width:220px}
-.alloc-bars span{display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:700}
-.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.alloc-bars{display:flex;height:32px;border-radius:8px;overflow:hidden;border:1px solid var(--line);min-width:220px}
+.alloc-bars span{display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:700;text-shadow:0 1px 1px rgba(0,0,0,.28)}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
 @media (max-width:680px){.kpis{grid-template-columns:repeat(2,1fr)}}
-.kpi{background:#f8fafc;border:1px solid var(--line);border-radius:10px;padding:10px 12px}
-.kpi .v{font-size:18px;font-weight:700;letter-spacing:-.02em}
-.kpi .k{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:2px}
-.tabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:10px}
-.tab{padding:7px 12px;border-radius:8px;font-size:12.5px;font-weight:600;cursor:pointer;color:var(--muted);border:1px solid transparent}
-.tab.active{background:#eef2ff;color:#3730a3;border-color:#e0e7ff}
-.chart-wrap{position:relative;height:420px}
+.kpi{background:var(--inset);border:1px solid var(--line);border-radius:var(--radius-sm);padding:12px 14px}
+.kpi .v{font-size:19px;font-weight:720;letter-spacing:-.02em;color:var(--ink)}
+.kpi .k{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:3px}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.tab{padding:7px 13px;border-radius:999px;font-size:12.5px;font-weight:600;cursor:pointer;color:var(--muted);border:1px solid transparent;transition:.12s}
+.tab:hover{color:var(--ink);background:var(--inset)}
+.tab.active{background:var(--accent-soft);color:var(--accent);border-color:var(--accent-line)}
+.chart-wrap{position:relative;height:430px}
 .chart-wrap.short{height:300px}
-.legend-note{font-size:11.5px;color:var(--muted);margin-top:8px}
+.legend-note{font-size:11.5px;color:var(--muted);margin-top:8px;line-height:1.5}
 table.cmp{width:100%;border-collapse:collapse;font-size:12.5px}
-table.cmp th,table.cmp td{padding:7px 10px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+table.cmp th,table.cmp td{padding:8px 11px;border-bottom:1px solid var(--line2);text-align:right;white-space:nowrap}
 table.cmp th:first-child,table.cmp td:first-child{text-align:left;position:sticky;left:0;background:var(--card)}
 table.cmp thead th{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);border-bottom:2px solid var(--line)}
-table.cmp tr:hover td{background:#fafbfc}
-.cell-best{background:#ecfdf5;color:#065f46;font-weight:700;border-radius:4px}
-.cell-worst{background:#fef2f2;color:#991b1b}
+table.cmp tr:hover td{background:var(--inset)}
+.cell-best{background:var(--green-soft);color:var(--green);font-weight:700;border-radius:4px}
+.cell-worst{background:var(--red-soft);color:var(--red);border-radius:4px}
 .metric-name{display:flex;flex-direction:column}
 .metric-name small{color:var(--muted);font-weight:400;font-size:10.5px}
-.versions{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
-.chip{display:inline-flex;align-items:center;gap:7px;padding:5px 9px;border-radius:999px;border:1px solid var(--line);font-size:12px;background:#fff}
-.chip .sw{width:10px;height:10px;border-radius:3px}
-.chip button{border:none;background:none;cursor:pointer;color:var(--muted);font-size:14px;line-height:1;padding:0}
+.versions{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+.chip{display:inline-flex;align-items:center;gap:7px;padding:5px 10px;border-radius:999px;border:1px solid var(--line);font-size:12px;background:var(--card)}
+.chip .sw{width:10px;height:10px;border-radius:3px;flex:none}
+.chip button{border:none;background:none;cursor:pointer;color:var(--muted);font-size:15px;line-height:1;padding:0}
+.chip button:hover{color:var(--red)}
 .scroll-x{overflow-x:auto}
-.callout{border-left:3px solid var(--accent);background:#f8fafc;padding:10px 13px;border-radius:0 8px 8px 0;font-size:12.5px;color:#26303f;margin:8px 0}
-.callout.warn{border-left-color:var(--amber);background:#fffbeb}
-code{background:#f1f5f9;padding:1px 5px;border-radius:5px;font-size:12px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
-pre{background:#0f172a;color:#e2e8f0;padding:12px;border-radius:9px;overflow-x:auto;font-size:11.5px;line-height:1.5}
-.foot{color:var(--muted);font-size:11.5px;text-align:center;margin:18px 0 6px}
+.callout{border-left:3px solid var(--accent);background:var(--inset);padding:11px 14px;border-radius:0 var(--radius-sm) var(--radius-sm) 0;font-size:12.5px;color:var(--ink2);margin:10px 0;line-height:1.55}
+.callout.warn{border-left-color:var(--amber)}
+.callout b{color:var(--ink)}
+code{background:var(--inset);padding:1.5px 6px;border-radius:5px;font-size:12px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--ink)}
+pre{background:#0f172a;color:#e2e8f0;padding:13px;border-radius:var(--radius-sm);overflow-x:auto;font-size:11.5px;line-height:1.55}
+.foot{color:var(--muted);font-size:11.5px;text-align:center;margin:22px 0 6px;line-height:1.6}
 details summary{cursor:pointer;font-weight:600;font-size:12.5px;color:var(--accent)}
-.two-col{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 @media (max-width:780px){.two-col{grid-template-columns:1fr}}
 </style>
 </head>
@@ -163,6 +162,7 @@ details summary{cursor:pointer;font-weight:600;font-size:12.5px;color:var(--acce
         <button class="btn" id="btnUpdate" style="display:none">Update version</button>
         <button class="btn ghost" id="btnReset">Reset</button>
       </div>
+      <div class="ctl" style="margin-top:12px;padding-top:12px;border-top:1px solid var(--line2)"><label>Default on open <span class="hint">(this browser)</span></label><select id="cfgVerSel"></select></div>
       <div class="hint" id="runStamp" style="margin-top:8px;min-height:14px"></div>
     </div>
 
@@ -1174,8 +1174,9 @@ details summary{cursor:pointer;font-weight:600;font-size:12.5px;color:var(--acce
       if (editingVersionId === b.dataset.del) { editingVersionId = null; $("btnUpdate").style.display = "none"; }
       persist(); run();
     });
-    const cfgSel = $("cfgVerSel");
-    if (cfgSel) { const keep = cfgSel.value; cfgSel.innerHTML = cfgVerOptions(); if ([...cfgSel.options].some(o => o.value === keep)) cfgSel.value = keep; }
+    renderDashDefault();
+    const pas = $("paperActiveSel");
+    if (pas) { const k = pas.value; pas.innerHTML = cfgVerOptions(); if ([...pas.options].some(o => o.value === k)) pas.value = k; }
     renderAlertStratList();
   }
   function loadVersion(id) {
@@ -1211,6 +1212,8 @@ details summary{cursor:pointer;font-weight:600;font-size:12.5px;color:var(--acce
         prevAnchor = params.anchorKey; versions = s.versions || []; compare = s.compare || compare; editingVersionId = s.editingVersionId || null;
         if (migrated) try { localStorage.setItem("lrs_state_v4", JSON.stringify({ params, versions, compare, editingVersionId })); } catch (e) {}
       }
+      const dv = localStorage.getItem("lrs_default_version");
+      if (dv && dv !== "__current") { const v = versions.find(x => x.id === dv); if (v) { params = { ...DEFAULTS, ...structuredClone(v.params) }; prevAnchor = params.anchorKey; } }
     } catch (e) {}
   }
   function exportVersions() {
@@ -1297,6 +1300,13 @@ details summary{cursor:pointer;font-weight:600;font-size:12.5px;color:var(--acce
     setNL('Exported "' + nm + '" as strategy_config.json — commit it as alerts/strategy_config.json. It becomes the default the alerts & paper rebalance fall back to, and its name now shows in the alerts.');
   }
   function cfgVerOptions() { return ['<option value="__current">Current (live controls)</option>'].concat(versions.map(v => `<option value="${v.id}">${v.name}</option>`)).join(""); }
+  function renderDashDefault() {
+    const sel = $("cfgVerSel"); if (!sel) return;
+    let keep = sel.value; if (!keep) { try { keep = localStorage.getItem("lrs_default_version") || "__current"; } catch (e) { keep = "__current"; } }
+    sel.innerHTML = cfgVerOptions();
+    sel.value = [...sel.options].some(o => o.value === keep) ? keep : "__current";
+    if (!sel.onchange) sel.onchange = () => { try { localStorage.setItem("lrs_default_version", sel.value); } catch (e) {} if (sel.value !== "__current") loadVersion(sel.value); };
+  }
   function renderAlerts() {
     $("alertsHost").innerHTML =
       `<div class="callout">The dashboard runs <b>inside a sandbox</b> and cannot send messages itself. Live alerts run on <b>GitHub Actions</b>, which re-checks this exact signal logic on a schedule and emails/Telegrams you only when the target allocation changes.</div>
@@ -1310,14 +1320,7 @@ details summary{cursor:pointer;font-weight:600;font-size:12.5px;color:var(--acce
 State: Weakness (score 0.30)
 TQQQ 55% | SQQQ 15% | JEPQ 30%
 (was TQQQ 70% | JEPQ 30%)</pre>
-      <div style="margin-top:8px"><b>Set the default strategy (alerts &amp; paper rebalance)</b><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;align-items:center"><select id="cfgVerSel" style="min-width:200px;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);font:inherit"></select><button class="btn" id="btnExportCfg2">Export default config (.json)</button></div><div class="hint" style="margin-top:5px">Pick the current controls or a saved version, export, and commit it as <code>alerts/strategy_config.json</code>. This is the default the automation uses when no multi-strategy list is set; its name appears in the alerts.</div></div></div></div><div style="margin-top:12px"><b>Monitor multiple strategies (tagged alerts)</b><div id="alertStratList" style="margin-top:6px"></div><button class="btn" id="btnExportStrats" style="margin-top:6px">Export strategies.json (selected)</button><div class="hint" style="margin-top:5px">Tick the saved versions to monitor, export, then commit the file as <code>alerts/strategies.json</code> — each sends its own name-tagged alert when its allocation changes. If this file is absent, the single default above is used.</div></div>`;
-    $("cfgVerSel").innerHTML = cfgVerOptions();
-    $("btnExportCfg2").onclick = () => {
-      const id = $("cfgVerSel").value;
-      if (id === "__current") return exportConfig();
-      const v = versions.find(x => x.id === id);
-      exportConfig(v ? { ...DEFAULTS, ...v.params } : null, v ? v.name : null);
-    };
+      </div></div><div style="margin-top:12px"><b>Monitor multiple strategies (tagged alerts)</b><div id="alertStratList" style="margin-top:6px"></div><div class="nl-status" id="alertCfgStatus" style="min-height:14px;margin-top:4px"></div><div class="hint" style="margin-top:4px">Ticking auto-saves your selection to the Worker — alerts pick these up automatically, no commit needed (requires the Worker connected in the Paper section). Each sends its own name-tagged alert when its allocation changes.</div><button class="btn" id="btnExportStrats" style="margin-top:6px">Export strategies.json (manual fallback)</button></div>`;
     renderAlertStratList();
     $("btnExportStrats").onclick = exportStrategies;
   }
@@ -1328,7 +1331,7 @@ TQQQ 55% | SQQQ 15% | JEPQ 30%
     if (!versions.length) { host.innerHTML = "<span class='hint'>No saved versions yet — save a strategy (“Save as new”) to monitor several at once.</span>"; return; }
     const sel = alertSel();
     host.innerHTML = versions.map(v => "<label style='display:flex;gap:8px;align-items:center;margin:4px 0;font-size:12.5px;cursor:pointer'><input type='checkbox' data-alert='" + v.id + "'" + (sel[v.id] !== false ? " checked" : "") + "> <span class='sw' style='display:inline-block;width:10px;height:10px;border-radius:3px;background:" + v.color + "'></span> " + v.name + "</label>").join("");
-    host.querySelectorAll("[data-alert]").forEach(c => c.onchange = () => { const s = alertSel(); s[c.dataset.alert] = c.checked; saveAlertSel(s); });
+    host.querySelectorAll("[data-alert]").forEach(c => c.onchange = () => { const s = alertSel(); s[c.dataset.alert] = c.checked; saveAlertSel(s); pushAlertStrategies(); });
   }
   function exportStrategies() {
     const sel = alertSel();
@@ -1339,14 +1342,34 @@ TQQQ 55% | SQQQ 15% | JEPQ 30%
     const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "strategies.json"; a.click();
     setNL("Exported strategies.json with " + arr.length + " strategy(ies): " + arr.map(s => s.name).join(", ") + ". Commit it as alerts/strategies.json — each gets its own name-tagged alert.");
   }
+  async function pushAlertStrategies() {
+    const st = $("alertCfgStatus");
+    const sel = alertSel();
+    const chosen = versions.filter(v => sel[v.id] !== false).map(v => ({ name: v.name, alert: true, params: { ...DEFAULTS, ...v.params } }));
+    if (!paperCfg.url) { if (st) { st.innerHTML = "Selected on this device. Connect your Worker in the Paper section to auto-apply (or use Export below)."; st.style.color = "var(--amber)"; } return; }
+    if (st) { st.innerHTML = "Saving to Worker&hellip;"; st.style.color = "var(--muted)"; }
+    try { await paperFetch("/config", { method: "POST", body: JSON.stringify({ alertStrategies: chosen }) }); if (st) { st.innerHTML = "Saved " + chosen.length + " strategy(ies) to your Worker — alerts use these automatically."; st.style.color = "var(--green)"; } }
+    catch (e) { if (st) { st.innerHTML = "Couldn't save to Worker: " + e.message + " — use Export below as a fallback."; st.style.color = "var(--red)"; } }
+  }
   let paperCfg = { url: "", token: "" }, paperChart = null;
   function loadPaperCfg() { try { const c = JSON.parse(localStorage.getItem("lrs_paper")); if (c) paperCfg = c; } catch (e) {} }
   function savePaperCfg() { try { localStorage.setItem("lrs_paper", JSON.stringify(paperCfg)); } catch (e) {} }
-  function currentTargets() {
-    if (!lastRun) return [];
-    const p = readParams(), ind = lastRun.cur.bt.ind;
-    const tw = E.targetWeights(D.dates.length - 1, ind, D, p);
+  function targetsForParams(p) {
+    const run = buildRun(p); if (run.error) return [];
+    const tw = E.targetWeights(D.dates.length - 1, run.bt.ind, D, p);
     return [["TQQQ", tw.tqqq], ["SQQQ", tw.sqqq], ["TLT", tw.tlt], [ALABEL(p.anchorKey), tw.jepq]].filter(x => x[1] > 0.001).map(x => ({ symbol: x[0], weight: +x[1].toFixed(4) }));
+  }
+  function currentTargets() { return lastRun ? targetsForParams(readParams()) : []; }
+  function paperActiveParams() {
+    const id = paperCfg.activeId;
+    if (id && id !== "__current") { const v = versions.find(x => x.id === id); if (v) return { name: v.name, params: { ...DEFAULTS, ...v.params } }; }
+    return { name: "Current controls", params: readParams() };
+  }
+  async function pushActiveStrategy() {
+    const a = paperActiveParams();
+    if (!paperCfg.url) { setPaperStatus("Active strategy set locally: " + a.name + ". Connect the Worker to auto-apply to scheduled rebalancing.", false); return; }
+    try { await paperFetch("/config", { method: "POST", body: JSON.stringify({ activeStrategy: { name: a.name, params: a.params } }) }); setPaperStatus("Active strategy saved to Worker: " + a.name + " — used by the manual button and the scheduled rebalance."); }
+    catch (e) { setPaperStatus("Set locally; couldn't reach Worker: " + e.message, true); }
   }
   async function paperFetch(path, opts) {
     if (!paperCfg.url) throw new Error("Set your worker URL first.");
@@ -1364,9 +1387,10 @@ TQQQ 55% | SQQQ 15% | JEPQ 30%
     catch (e) { setPaperStatus("Couldn't reach the worker: " + e.message + ". (Live trading works on the hosted site; this in-app preview can't reach external services.)", true); }
   }
   async function paperExecute() {
-    const targets = currentTargets();
+    const active = paperActiveParams();
+    const targets = targetsForParams(active.params);
     if (!targets.length) { setPaperStatus("Run a backtest first.", true); return; }
-    if (!window.confirm("Rebalance your Alpaca PAPER account to: " + targets.map(t => t.symbol + " " + Math.round(t.weight * 100) + "%").join(", ") + " ?")) return;
+    if (!window.confirm("Rebalance your Alpaca PAPER account to “" + active.name + "”: " + targets.map(t => t.symbol + " " + Math.round(t.weight * 100) + "%").join(", ") + " ?")) return;
     setPaperStatus("Submitting orders&hellip;");
     try {
       const r = await paperFetch("/rebalance", { method: "POST", body: JSON.stringify({ targets }) });
@@ -1407,9 +1431,12 @@ TQQQ 55% | SQQQ 15% | JEPQ 30%
       "<div class='callout'>Executes the strategy's current target allocation on an <b>Alpaca paper</b> account via your own Cloudflare Worker (your keys stay in the worker, never in this page). See <code>paper-worker/README.md</code> to deploy it. Live trading runs on the <b>hosted site</b>; this in-app preview can't reach external services. <i>Optional:</i> a <code>paper-rebalance</code> GitHub Action can auto-rebalance on a schedule.</div>" +
       "<div class='ctl'><label>Worker URL</label><input id='paperUrl' placeholder='https://your-worker.workers.dev' style='width:230px'></div>" +
       "<div class='ctl'><label>Access token <span class='hint'>(optional)</span></label><input id='paperToken' placeholder='if set on the worker' style='width:230px'></div>" +
+      "<div class='ctl'><label>Active strategy <span class='hint'>(paper &amp; auto-rebalance)</span></label><select id='paperActiveSel' style='width:230px'></select></div>" +
       "<div class='btn-row'><button class='btn' id='btnPaperConnect'>Save &amp; connect</button><button class='btn primary' id='btnPaperExec'>Rebalance paper account to current target</button></div>" +
       "<div class='nl-status' id='paperStatus'></div><div id='paperResult'></div><div id='paperAccount' style='margin-top:10px'></div>";
     $("paperUrl").value = paperCfg.url || ""; $("paperToken").value = paperCfg.token || "";
+    const pas = $("paperActiveSel");
+    if (pas) { pas.innerHTML = cfgVerOptions(); pas.value = paperCfg.activeId || "__current"; pas.onchange = () => { paperCfg.activeId = pas.value; savePaperCfg(); pushActiveStrategy(); }; }
     $("btnPaperConnect").onclick = () => { paperCfg.url = $("paperUrl").value.trim(); paperCfg.token = $("paperToken").value.trim(); savePaperCfg(); paperConnect(); };
     $("btnPaperExec").onclick = paperExecute;
   }

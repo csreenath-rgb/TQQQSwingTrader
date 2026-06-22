@@ -37,6 +37,8 @@ jobs:
           SMTP_USER:          ${{ secrets.SMTP_USER }}
           SMTP_PASS:          ${{ secrets.SMTP_PASS }}
           ALERT_TO:           ${{ secrets.ALERT_TO }}
+          PAPER_WORKER_URL:   ${{ secrets.PAPER_WORKER_URL }}
+          PAPER_ACCESS_TOKEN: ${{ secrets.PAPER_ACCESS_TOKEN }}
         run: python alerts/check_signal.py ${{ inputs.force && '--force' || '' }}
       - name: Persist updated state
         run: |

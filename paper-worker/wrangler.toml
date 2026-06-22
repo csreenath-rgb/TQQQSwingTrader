@@ -8,3 +8,10 @@ compatibility_date = "2024-11-01"
 [vars]
 ALPACA_BASE = "https://paper-api.alpaca.markets"
 ALLOW_ORIGIN = "*"
+
+# Config store for dashboard-driven strategy selection (alerts + active paper strategy).
+# One-time setup:  wrangler kv namespace create CONFIG
+# then paste the printed id below (replace REPLACE_WITH_KV_ID) and `wrangler deploy`.
+[[kv_namespaces]]
+binding = "CONFIG"
+id = "2a84c2602fee4f8faf68afacc9fd7dfb"
