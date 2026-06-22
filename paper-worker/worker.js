@@ -32,6 +32,10 @@ export default {
         }
         return json(await readConfig(env), 200, o);
       }
+      if (url.pathname === "/orders") {
+        let oo = []; try { oo = await alpaca(env, "/v2/orders?status=all&limit=50&direction=desc"); } catch (e) {}
+        return json({ orders: (Array.isArray(oo) ? oo : []).map(z => ({ symbol: z.symbol, side: z.side, qty: +z.filled_qty || +z.qty || 0, notional: z.notional != null ? +z.notional : null, price: +z.filled_avg_price || null, status: z.status, submitted: z.submitted_at, filled: z.filled_at })) }, 200, o);
+      }
       if (url.pathname === "/account") {
         const acct = await alpaca(env, "/v2/account");
         let positions = []; try { positions = await alpaca(env, "/v2/positions"); } catch (e) {}
@@ -48,8 +52,9 @@ export default {
         let positions = []; try { positions = await alpaca(env, "/v2/positions"); } catch (e) {}
         const posMap = {}; positions.forEach(p => posMap[p.symbol] = +p.market_value);
         const equity = +acct.equity;
-        const plan = planRebalance(equity, posMap, targets);
+        const plan = planRebalance(equity, posMap, targets, { band: +body.band || 0 });
         const results = [];
+        if (plan.skipped) return json({ ok: true, equity, skipped: true, drift: plan.drift, band: plan.band, plan, results }, 200, o);
         let canceled = 0;
         try { const cc = await alpaca(env, "/v2/orders", "DELETE"); if (Array.isArray(cc)) canceled = cc.length; } catch (e) {}
         if (canceled) await new Promise(r => setTimeout(r, 1200));

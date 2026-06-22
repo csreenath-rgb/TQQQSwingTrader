@@ -1393,7 +1393,9 @@ TQQQ 55% | SQQQ 15% | JEPQ 30%
     if (!window.confirm("Rebalance your Alpaca PAPER account to “" + active.name + "”: " + targets.map(t => t.symbol + " " + Math.round(t.weight * 100) + "%").join(", ") + " ?")) return;
     setPaperStatus("Submitting orders&hellip;");
     try {
-      const r = await paperFetch("/rebalance", { method: "POST", body: JSON.stringify({ targets }) });
+      const band = (active.params.rebalance === "signal") ? ((active.params.rebalanceBand != null ? +active.params.rebalanceBand : 5) / 100) : 0;
+      const r = await paperFetch("/rebalance", { method: "POST", body: JSON.stringify({ targets, band }) });
+      if (r.skipped) { setPaperStatus("Already within the " + Math.round((r.band || 0) * 100) + "% band (drift " + (Math.round((r.drift || 0) * 1000) / 10) + "%) — no orders placed.", false); renderPaperResult({ results: [] }); return; }
       const okN = r.results.filter(x => x.ok).length, bad = r.results.filter(x => !x.ok);
       setPaperStatus("Rebalanced: " + okN + " order(s) ok" + (bad.length ? "; " + bad.length + " failed" : "") + (r.canceled ? "; cancelled " + r.canceled + " stale order(s) first" : "") + ".", bad.length > 0);
       renderPaperResult(r);
@@ -1407,6 +1409,21 @@ TQQQ 55% | SQQQ 15% | JEPQ 30%
     const rows = res.map(x => "<tr><td style='text-align:left'>" + (x.symbol || "") + "</td><td style='text-align:left'>" + (x.action || x.side || "") + "</td><td>" + (x.notional != null ? money(x.notional) : "&mdash;") + "</td><td style='font-weight:700;color:" + (x.ok ? "var(--green)" : "var(--red)") + "'>" + (x.ok ? "ok" : "FAILED") + "</td><td style='text-align:left;color:var(--red)'>" + (x.error || "") + "</td></tr>").join("");
     host.innerHTML = "<div class='callout" + (res.some(x => !x.ok) ? " warn" : "") + "' style='margin-top:10px'><b>Order results</b>" + (r.canceled ? " &middot; cancelled " + r.canceled + " stale order(s) first" : "") +
       "<div class='scroll-x' style='margin-top:6px'><table class='cmp'><thead><tr><th style='text-align:left'>Symbol</th><th style='text-align:left'>Side</th><th>Amount</th><th>Status</th><th style='text-align:left'>Detail</th></tr></thead><tbody>" + rows + "</tbody></table></div></div>";
+  }
+  async function paperHistory() {
+    const host = $("paperHistory"); if (!host) return;
+    host.innerHTML = "<div class='nl-status'>Loading trade history&hellip;</div>";
+    try {
+      const d = await paperFetch("/orders");
+      const rows = (d.orders || []).map(z => {
+        const amt = z.notional != null ? money(z.notional) : (z.qty ? (z.qty + " sh") : "");
+        const px = z.price ? (" @ $" + (+z.price).toFixed(2)) : "";
+        const when = String(z.filled || z.submitted || "").slice(0, 16).replace("T", " ");
+        const col = z.side === "buy" ? "var(--green)" : "var(--red)";
+        return "<tr><td style='text-align:left'>" + when + "</td><td style='text-align:left'>" + (z.symbol || "") + "</td><td style='text-align:left;color:" + col + "'>" + (z.side || "") + "</td><td>" + amt + px + "</td><td style='text-align:left'>" + (z.status || "") + "</td></tr>";
+      }).join("");
+      host.innerHTML = rows ? "<div class='scroll-x' style='margin-top:10px'><table class='cmp'><thead><tr><th style='text-align:left'>When (UTC)</th><th style='text-align:left'>Symbol</th><th style='text-align:left'>Side</th><th>Amount</th><th style='text-align:left'>Status</th></tr></thead><tbody>" + rows + "</tbody></table></div>" : "<div class='legend-note' style='margin-top:8px'>No orders yet.</div>";
+    } catch (e) { host.innerHTML = "<div class='nl-status' style='color:var(--red)'>Couldn't load history: " + e.message + "</div>"; }
   }
   function renderPaperAccount(d) {
     const host = $("paperAccount"); if (!host) return;
@@ -1432,13 +1449,14 @@ TQQQ 55% | SQQQ 15% | JEPQ 30%
       "<div class='ctl'><label>Worker URL</label><input id='paperUrl' placeholder='https://your-worker.workers.dev' style='width:230px'></div>" +
       "<div class='ctl'><label>Access token <span class='hint'>(optional)</span></label><input id='paperToken' placeholder='if set on the worker' style='width:230px'></div>" +
       "<div class='ctl'><label>Active strategy <span class='hint'>(paper &amp; auto-rebalance)</span></label><select id='paperActiveSel' style='width:230px'></select></div>" +
-      "<div class='btn-row'><button class='btn' id='btnPaperConnect'>Save &amp; connect</button><button class='btn primary' id='btnPaperExec'>Rebalance paper account to current target</button></div>" +
-      "<div class='nl-status' id='paperStatus'></div><div id='paperResult'></div><div id='paperAccount' style='margin-top:10px'></div>";
+      "<div class='btn-row'><button class='btn' id='btnPaperConnect'>Save &amp; connect</button><button class='btn primary' id='btnPaperExec'>Rebalance paper account to current target</button><button class='btn' id='btnPaperHistory'>Trade history</button></div>" +
+      "<div class='nl-status' id='paperStatus'></div><div id='paperResult'></div><div id='paperHistory'></div><div id='paperAccount' style='margin-top:10px'></div>";
     $("paperUrl").value = paperCfg.url || ""; $("paperToken").value = paperCfg.token || "";
     const pas = $("paperActiveSel");
     if (pas) { pas.innerHTML = cfgVerOptions(); pas.value = paperCfg.activeId || "__current"; pas.onchange = () => { paperCfg.activeId = pas.value; savePaperCfg(); pushActiveStrategy(); }; }
     $("btnPaperConnect").onclick = () => { paperCfg.url = $("paperUrl").value.trim(); paperCfg.token = $("paperToken").value.trim(); savePaperCfg(); paperConnect(); };
     $("btnPaperExec").onclick = paperExecute;
+    $("btnPaperHistory").onclick = paperHistory;
   }
 
   function init() {

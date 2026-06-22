@@ -7,8 +7,9 @@
     "build": "node build.js",
     "test:engine": "node test/test_engine.js",
     "test:ui": "node test/test_ui.js",
-    "test": "node build.js && node test/test_engine.js && node test/test_ui.js && node test/test_paper.mjs",
-    "test:paper": "node test/test_paper.mjs"
+    "test": "node build.js && node test/test_engine.js && node test/test_ui.js && node test/test_paper.mjs && node test/test_parity.js",
+    "test:paper": "node test/test_paper.mjs",
+    "test:parity": "node test/test_parity.js"
   },
   "devDependencies": {
     "jsdom": "^24.1.0"

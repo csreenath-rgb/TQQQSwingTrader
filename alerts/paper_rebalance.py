@@ -51,6 +51,7 @@ def main():
     targets = [{"symbol": s, "weight": round(w, 4)} for s, w in
                [("TQQQ", tw["tqqq"]), ("SQQQ", tw["sqqq"]), ("TLT", tw["tlt"]), (anchor, tw["jepq"])] if w > 0.001]
     summary = ", ".join(f"{t['symbol']} {round(t['weight']*100)}%" for t in targets)
+    _rb = p.get("rebalanceBand"); band = ((float(_rb) if _rb is not None else 5) / 100) if p.get("rebalance") == "signal" else 0
     print(f"[{p.get('name','Default')}] As of {dates[i]}: {tw['state']} (score {tw['h']:.2f}) -> {summary}")
     url = os.environ.get("PAPER_WORKER_URL"); tok = os.environ.get("PAPER_ACCESS_TOKEN")
     if not url:
@@ -59,10 +60,12 @@ def main():
     headers = {"content-type": "application/json", "Accept": "application/json",
                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"}
     if tok: headers["x-access-token"] = tok
-    req = urllib.request.Request(url.rstrip("/") + "/rebalance", data=json.dumps({"targets": targets}).encode(), headers=headers)
+    req = urllib.request.Request(url.rstrip("/") + "/rebalance", data=json.dumps({"targets": targets, "band": band}).encode(), headers=headers)
     try:
         with urllib.request.urlopen(req, timeout=60) as r:
             res = json.load(r)
+        if res.get("skipped"):
+            print(f"Within band: drift {res.get('drift')} <= band {res.get('band')} - no rebalance needed."); return
         if res.get("canceled"): print(f"Cancelled {res['canceled']} stale order(s) first.")
         print("Worker result:", json.dumps(res.get("results", res))[:1800])
         try: notify_rebalance(pname, dates[i], summary, res)
