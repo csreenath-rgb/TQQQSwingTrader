@@ -16,7 +16,7 @@ Secrets via env: TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID,
                  SMTP_HOST(default smtp.gmail.com), SMTP_PORT(587), SMTP_USER, SMTP_PASS, ALERT_TO
 Usage: python check_signal.py [--force] [--dry-run] [--data file.json] [--at-index N]
 """
-import os, sys, json, time, math, ssl, smtplib, urllib.request, urllib.parse
+import os, sys, json, time, math, ssl, smtplib, hashlib, urllib.request, urllib.parse
 import datetime as dt
 from email.mime.text import MIMEText
 
@@ -169,6 +169,10 @@ def fetch_worker_config():
     except Exception as e:
         print("[config] worker config unavailable, using files/default:", e); return {}
 
+def config_sig(strategies):
+    blob = json.dumps([[s.get("name"), s.get("params")] for s in strategies], sort_keys=True, default=str)
+    return hashlib.md5(blob.encode()).hexdigest()
+
 def load_strategies():
     """Strategy input: $STRATEGIES_FILE or alerts/strategies.json (dashboard selection/upload);
     falls back to the single default strategy_config.json when none is provided."""
@@ -237,6 +241,13 @@ def main():
         old = state if state.get("target") else {}
         state = {"strategies": ({"Default": old} if old else {})}
     sstate = state["strategies"]
+    sig = config_sig(strategies)
+    if not dry and not data_file and state.get("alertConfigSig") and state["alertConfigSig"] != sig:
+        names = ", ".join(s["name"] for s in strategies)
+        cbody = chr(10).join(["ALERT SETTINGS CHANGED", "Now monitoring %d strategy(ies):" % len(strategies), "  " + names, "", "Detected at the scheduled check.", "Educational tool, not investment advice."])
+        print("[config-change] settings changed since last run - notifying")
+        send_telegram(cbody); send_email("[Strategy] Alert settings changed", cbody)
+    state["alertConfigSig"] = sig
     print(f"Evaluating {len(strategies)} strategy(ies): " + ", ".join(s["name"] for s in strategies))
     for s in strategies:
         name = s["name"]; p = dict(s["params"]); alab = p.get("anchorKey","jepq").upper()

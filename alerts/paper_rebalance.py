@@ -12,6 +12,25 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import check_signal as cs
 
+def notify_rebalance(pname, asof, summary, res):
+    results = res.get("results", [])
+    if not results:
+        print("[email] no orders placed - no rebalance email"); return
+    lines = []
+    for x in results:
+        amt = ("$" + format(int(x["notional"]), ",")) if x.get("notional") is not None else ""
+        act = x.get("action") or x.get("side") or ""
+        stt = "ok" if x.get("ok") else ("FAILED: " + str(x.get("error", "")))
+        lines.append("  " + str(x.get("symbol", "")) + " " + act + " " + amt + " - " + stt)
+    ok_n = sum(1 for x in results if x.get("ok")); bad_n = len(results) - ok_n
+    subject = "[Paper] Rebalance executed - " + pname + " (" + summary + ")"
+    head = ["PAPER REBALANCE EXECUTED", "Strategy : " + pname, "As of    : " + str(asof),
+            "Equity   : $" + format(int(res.get("equity", 0)), ",")]
+    if res.get("canceled"): head.append("Cancelled " + str(res["canceled"]) + " stale order(s) first.")
+    head += ["Target   : " + summary, "", "Orders (" + str(ok_n) + " ok, " + str(bad_n) + " failed):"]
+    body = chr(10).join(head + lines + ["", "Alpaca paper account. Educational tool, not investment advice."])
+    cs.send_telegram(body); cs.send_email(subject, body)
+
 def main():
     wc = cs.fetch_worker_config()
     act = wc.get("activeStrategy") or {}
@@ -28,7 +47,7 @@ def main():
     er = cs.compute_er(tq, int(p.get("erWindow", 10)))
     i = len(dates) - 1
     tw = cs.target(tq[i], sma[i], rsi[i], vol[i], vx[i], adx[i], er[i], p)
-    anchor = p.get("anchorKey", "jepq").upper()
+    pname = p.get("name", "Default"); anchor = p.get("anchorKey", "jepq").upper()
     targets = [{"symbol": s, "weight": round(w, 4)} for s, w in
                [("TQQQ", tw["tqqq"]), ("SQQQ", tw["sqqq"]), ("TLT", tw["tlt"]), (anchor, tw["jepq"])] if w > 0.001]
     summary = ", ".join(f"{t['symbol']} {round(t['weight']*100)}%" for t in targets)
@@ -46,6 +65,7 @@ def main():
             res = json.load(r)
         if res.get("canceled"): print(f"Cancelled {res['canceled']} stale order(s) first.")
         print("Worker result:", json.dumps(res.get("results", res))[:1800])
+        notify_rebalance(pname, dates[i], summary, res)
     except urllib.error.HTTPError as e:
         body = e.read().decode("utf-8", "replace")[:400]
         print(f"Rebalance call failed: HTTP {e.code} {e.reason} | worker said: {body}")
