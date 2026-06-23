@@ -4,8 +4,8 @@ name: Strategy rebalance alerts
 # both offsets; state.json de-dupes so you never get two alerts for one signal.
 on:
   schedule:
-    - cron: "45 19 * * 5"   # 15:45 ET while EDT (UTC-4)
-    - cron: "45 20 * * 5"   # 15:45 ET while EST (UTC-5)
+    - cron: "45 19 * * 1-5"   # weekdays 15:45 ET while EDT (UTC-4)
+    - cron: "45 20 * * 1-5"   # weekdays 15:45 ET while EST (UTC-5)
   workflow_dispatch:         # manual "Run workflow" button (use to test)
     inputs:
       force:

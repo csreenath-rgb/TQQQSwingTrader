@@ -254,10 +254,12 @@ def main():
         asof, tw, bd = evaluate(p, dates, tq, vx, hi, lo, cl, at_index)
         tgt = {k: round(tw[k],4) for k in ("tqqq","sqqq","jepq","tlt")}
         prev = sstate.get(name, {}); pw_ = prev.get("target", {})
-        drift = sum(abs(tgt[k]-pw_.get(k,0)) for k in tgt); changed = drift > 0.005
+        drift = sum(abs(tgt[k]-pw_.get(k,0)) for k in tgt)
+        thr = (float(p.get("rebalanceBand", 5)) / 100) if p.get("rebalance") == "signal" else 0.005
+        changed = drift > thr
         head = "Whipsaw → TLT" if tw["whip"] else tw["state"]
         tag = f"{name}  [{int(p['enginePct'])}% engine / {alab} anchor]"
-        print(f"[{name}] as of {asof}: {head} (score {tw['h']:.2f}) -> {pctw(tw,alab)}  changed={changed} (drift {drift:.3f})")
+        print(f"[{name}] as of {asof}: {head} (score {tw['h']:.2f}) -> {pctw(tw,alab)}  changed={changed} (drift {drift:.3f} vs threshold {thr:.3f})")
         print("   " + bd)
         if changed or force:
             prev_str = pctw({**tw, **{k:pw_.get(k,0) for k in tgt}}, alab) if pw_ else "n/a (first run)"

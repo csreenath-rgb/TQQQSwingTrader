@@ -8,6 +8,7 @@ Env: PAPER_WORKER_URL  (your Cloudflare Worker URL)
      PAPER_ACCESS_TOKEN (the worker's ACCESS_TOKEN, if set)
 """
 import os, sys, json, urllib.request, urllib.error, urllib.parse
+import datetime as dt
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import check_signal as cs
@@ -53,6 +54,14 @@ def main():
     summary = ", ".join(f"{t['symbol']} {round(t['weight']*100)}%" for t in targets)
     _rb = p.get("rebalanceBand"); band = ((float(_rb) if _rb is not None else 5) / 100) if p.get("rebalance") == "signal" else 0
     print(f"[{p.get('name','Default')}] As of {dates[i]}: {tw['state']} (score {tw['h']:.2f}) -> {summary}")
+    # Cadence gate (mirrors engine.js maybeRebalance): only act on the days the backtest would.
+    mode = p.get("rebalance", "weekly")
+    if mode in ("weekly", "monthly") and len(dates) >= 2:
+        gd = lambda s: (dt.date.fromisoformat(s).weekday() + 1) % 7  # JS getDay: Sun=0..Sat=6
+        if mode == "weekly" and not (gd(dates[i]) < gd(dates[i - 1])):
+            print(f"[cadence] weekly mode: {dates[i]} is not a new-week boundary - no rebalance today."); return
+        if mode == "monthly" and dt.date.fromisoformat(dates[i]).month == dt.date.fromisoformat(dates[i - 1]).month:
+            print(f"[cadence] monthly mode: {dates[i]} is the same month as the prior bar - no rebalance today."); return
     url = os.environ.get("PAPER_WORKER_URL"); tok = os.environ.get("PAPER_ACCESS_TOKEN")
     if not url:
         print("PAPER_WORKER_URL not set - computed targets only, no orders placed."); return

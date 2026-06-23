@@ -1,10 +1,12 @@
 name: Paper auto-rebalance (Alpaca)
 
 # Optional. Does nothing unless the PAPER_WORKER_URL secret is set.
-# Default: Friday 19:50 UTC (~15:50 ET in summer / ~14:50 ET in winter) - during market hours.
+# Runs each weekday at 19:50 UTC (~15:50 ET EDT / ~14:50 ET EST). paper_rebalance.py gates by the
+# strategy's rebalance mode (daily/signal every day; weekly on the new-week boundary; monthly on month
+# change) so live rebalance timing matches the backtest chart.
 on:
   schedule:
-    - cron: "50 19 * * 5"
+    - cron: "50 19 * * 1-5"
   workflow_dispatch:
 
 permissions:
