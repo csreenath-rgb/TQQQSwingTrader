@@ -1,0 +1,31 @@
+{
+  "strategies": {
+    "AfterTax85TQQQ83Rebalance": {
+      "asof": "2026-06-22",
+      "state": "Weakness",
+      "score": 0.3,
+      "target": {
+        "tqqq": 0.6681,
+        "sqqq": 0.1819,
+        "jepq": 0.15,
+        "tlt": 0.0
+      },
+      "breakdown": "trend above 50d SMA \u00b7 vol 85% \u00b7 RSI 57 \u00b7 ADX 24 \u00b7 ER 0.25 \u00b7 VIX 17",
+      "updated": "2026-06-23T08:41:15.300205Z"
+    },
+    "85TQQQ10Rebalance": {
+      "asof": "2026-06-22",
+      "state": "Weakness",
+      "score": 0.3,
+      "target": {
+        "tqqq": 0.6681,
+        "sqqq": 0.1819,
+        "jepq": 0.15,
+        "tlt": 0.0
+      },
+      "breakdown": "trend above 50d SMA \u00b7 vol 85% \u00b7 RSI 57 \u00b7 ADX 24 \u00b7 ER 0.25 \u00b7 VIX 17",
+      "updated": "2026-06-23T08:41:16.677569Z"
+    }
+  },
+  "alertConfigSig": "3a009fb8d88d0394b568e701a5d8af98"
+}
