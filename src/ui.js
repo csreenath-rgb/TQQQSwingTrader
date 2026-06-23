@@ -360,7 +360,7 @@
       const p = readParams();
       const cur = buildRun(p);
       if (cur.error) { setNL(cur.error, true); const s0 = $("runStamp"); if (s0) s0.textContent = cur.error; return; }
-      const versionRuns = versions.map(v => ({ v, run: buildRun(v.params) })).filter(x => !x.run.error);
+      const versionRuns = versions.map(v => ({ v, run: buildRun({ ...v.params, startDate: p.startDate, endDate: p.endDate }) })).filter(x => !x.run.error);
       lastRun = { p, cur, versionRuns };
       renderKPIs(cur); renderChart(currentChartType); renderTable(); renderSignal(p); renderVersionChips(); renderCompareSel();
       const s = $("runStamp"); if (s) s.textContent = "Updated " + new Date().toLocaleTimeString() + " · " + Math.round(now() - t0) + " ms";
@@ -821,6 +821,9 @@ TQQQ 55% | SQQQ 15% | JEPQ 30%
   }
   async function paperHistory() {
     const host = $("paperHistory"); if (!host) return;
+    const btn = $("btnPaperHistory");
+    if (host.innerHTML.trim()) { host.innerHTML = ""; if (btn) btn.textContent = "Trade history"; return; }
+    if (btn) btn.textContent = "Hide history";
     host.innerHTML = "<div class='nl-status'>Loading trade history&hellip;</div>";
     try {
       const d = await paperFetch("/orders");
