@@ -5,6 +5,10 @@ An interactive dashboard that **simulates, backtests, and tunes** a TQQQ/SQQQ le
 optional **whipsaw filter** (ADX / Efficiency-Ratio → TLT), **after-tax** modeling, and
 **email + Telegram alerts** when a rebalance is due. Benchmarked vs **QQQ** and **TQQQ**.
 
+> **New here? Start with [ONBOARDING.md](ONBOARDING.md)** — a quick front door for using the
+> dashboard and standing up your own copy. For the full walkthrough, see the printable
+> [Onboarding & Usage Guide](ONBOARDING_AND_USAGE_GUIDE.docx).
+
 ## Repository layout
 
 ```
