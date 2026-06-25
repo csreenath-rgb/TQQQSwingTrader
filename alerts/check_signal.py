@@ -263,11 +263,16 @@ def main():
         print("   " + bd)
         if changed or force:
             prev_str = pctw({**tw, **{k:pw_.get(k,0) for k in tgt}}, alab) if pw_ else "n/a (first run)"
+            _mode = p.get("rebalance", "weekly"); _bp = p.get("rebalanceBand", 5)
+            if _mode == "signal": cadence = f"Evaluated each trading day; rebalances only when drift exceeds the {_bp}% band."
+            elif _mode == "daily": cadence = "Rebalances every trading day."
+            elif _mode == "monthly": cadence = "Rebalances at the start of each month."
+            else: cadence = "Rebalances at the start of each week (signal as of the prior Friday close)."
             subject = f"[Strategy] {name}: REBALANCE → {head} ({pctw(tw,alab)})"
             body = (f"LEVERAGED ROTATION — REBALANCE SIGNAL\nStrategy: {tag}\nAs of {asof}\n\n"
                     f"State : {head}  (hedge score {tw['h']:.2f} / 1.0)\n"
                     f"Target: {pctw(tw,alab)}\nPrev  : {prev_str}\n\nSignals: {bd}\n\n"
-                    f"Anchor sleeve = {alab}. Signal as of Friday close → execute Monday open.\n"
+                    f"Anchor sleeve = {alab}. {cadence}\n"
                     f"Educational tool, not investment advice.")
             if dry: print("\n--- DRY RUN, would send ---\n"+subject+"\n\n"+body+"\n")
             else: send_telegram(body); send_email(subject,body)

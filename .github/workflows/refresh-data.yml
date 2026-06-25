@@ -1,0 +1,50 @@
+name: Refresh dashboard data
+# Each weekday after close: pull the latest bars, append to data/strategy_data.json, rebuild, and
+# deploy the dashboard on fresh data. Builds & deploys itself (a token-pushed commit would not
+# trigger the CI workflow), so the dashboard panel, charts, and data badge always show current data.
+on:
+  schedule:
+    - cron: "30 22 * * 1-5"   # weekdays 22:30 UTC (~18:30 ET EDT / 17:30 EST) - after market close
+  workflow_dispatch:
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: false
+jobs:
+  refresh-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "20" }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - name: Fetch latest bars and update data
+        run: python scripts/update_data.py
+      - name: Rebuild dashboard
+        run: node build.js
+      - name: Sanity test (engine on refreshed data)
+        run: node test/test_engine.js
+      - name: Commit refreshed data
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/strategy_data.json
+          if git diff --cached --quiet; then echo "No new data."; else
+            git commit -m "Refresh market data [auto] [skip ci]"
+            git pull --rebase origin main && git push || echo "push skipped"
+          fi
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with: { path: "public" }
+      - name: Deploy to GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@v4
