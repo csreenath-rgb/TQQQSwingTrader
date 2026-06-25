@@ -278,13 +278,19 @@
     for (; i <= j; i++) out.push(initial * series[i] / base);
     return out;
   }
-  // after-tax buy&hold: defer all gains to one terminal long-term sale
-  function buyHoldAfterTax(eq, p) {
+  // after-tax buy&hold: value if liquidated at each point. Single lot bought at the start
+  // (cost basis = eq[0]); gain-to-date taxed short-term while held < 1yr, long-term after.
+  function buyHoldAfterTax(eq, dates, p) {
     if (p.accountType !== "taxable") return eq.slice();
     const ltRate = (p.ltRate != null ? p.ltRate : 15) / 100;
-    const out = eq.slice();
-    const gain = eq[eq.length - 1] - eq[0];
-    if (gain > 0) out[out.length - 1] = eq[eq.length - 1] - gain * ltRate;
+    const stRate = (p.stRate != null ? p.stRate : 35) / 100;
+    const basis = eq[0], t0 = new Date(dates[0]).getTime(), YEAR = 365.25 * 864e5;
+    const out = new Array(eq.length);
+    for (let i = 0; i < eq.length; i++) {
+      const gain = eq[i] - basis;
+      const rate = (new Date(dates[i]).getTime() - t0) >= YEAR ? ltRate : stRate;
+      out[i] = gain > 0 ? eq[i] - gain * rate : eq[i];
+    }
     return out;
   }
 

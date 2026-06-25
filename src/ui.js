@@ -339,8 +339,8 @@
     const eq = taxable ? bt.equityAT : bt.equity;
     const qqqBH = E.buyHold(D.qqq, D.dates, bt.dates, p.initialCapital);
     const tqqqBH = E.buyHold(D.tqqq, D.dates, bt.dates, p.initialCapital);
-    const qqqDisp = taxable ? E.buyHoldAfterTax(qqqBH, p) : qqqBH;
-    const tqqqDisp = taxable ? E.buyHoldAfterTax(tqqqBH, p) : tqqqBH;
+    const qqqDisp = taxable ? E.buyHoldAfterTax(qqqBH, bt.dates, p) : qqqBH;
+    const tqqqDisp = taxable ? E.buyHoldAfterTax(tqqqBH, bt.dates, p) : tqqqBH;
     const benchRet = E.seriesReturns(qqqDisp);
     return {
       bt, taxable, eq, eqPre: bt.equity, qqqDisp, tqqqDisp,
@@ -532,7 +532,7 @@
     $("cmpTable").innerHTML = head + body;
     const tn = $("taxNote");
     if (tn) {
-      if (taxable) { tn.style.display = ""; tn.innerHTML = `Showing <b>after-tax</b> results for a <b>taxable</b> account (ST ${lastRun.p.stRate}%, LT ${lastRun.p.ltRate}%, income ${lastRun.p.incomeRate}%). Benchmarks defer to one long-term sale, so they look far more tax-efficient. Switch <b>Account type</b> to tax-advantaged for pretax.`; }
+      if (taxable) { tn.style.display = ""; tn.innerHTML = `Showing <b>after-tax</b> results for a <b>taxable</b> account (ST ${lastRun.p.stRate}%, LT ${lastRun.p.ltRate}%, income ${lastRun.p.incomeRate}%). Benchmarks are taxed as a single buy-and-hold lot (short-term until held a year, long-term after), so they stay far more tax-efficient than a frequently-rebalanced strategy. Switch <b>Account type</b> to tax-advantaged for pretax.`; }
       else tn.style.display = "none";
     }
   }

@@ -48,10 +48,13 @@ ok("taxable: after-tax < pretax & taxes>0", atF<preF && tx.tax.total>0);
 ok("taxable: gains mostly short-term (weekly)", tx.tax.pctShortTerm>0.8);
 console.log(`     taxable strat: pretax $${Math.round(preF).toLocaleString()} -> after-tax $${Math.round(atF).toLocaleString()} (${pct(atF/preF-1)} hit); ST%=${pct(tx.tax.pctShortTerm)}; total tax $${Math.round(tx.tax.total).toLocaleString()}`);
 
-// buy&hold after-tax: single terminal LT haircut
+// buy&hold after-tax: liquidation value at each point (basis untaxed, terminal = LT haircut, gains taxed throughout)
 const tqbh=E.buyHold(DATA.tqqq,DATA.dates,bt.dates,1e5);
-const tqAT=E.buyHoldAfterTax(tqbh,{...base,accountType:"taxable"});
-ok("B&H after-tax only haircuts the end", relerr(tqAT.at(0),tqbh.at(0))<1e-12 && tqAT.at(-1)<tqbh.at(-1));
+const tqAT=E.buyHoldAfterTax(tqbh,bt.dates,{...base,accountType:"taxable"});
+const midUp=(()=>{for(let i=1;i<tqbh.length-1;i++)if(tqbh[i]>tqbh[0])return i;return -1;})();
+ok("B&H after-tax: basis point untaxed", relerr(tqAT.at(0),tqbh.at(0))<1e-12);
+ok("B&H after-tax: terminal long-term haircut", relerr(tqAT.at(-1), tqbh.at(-1)-(tqbh.at(-1)-tqbh.at(0))*0.15)<1e-9);
+ok("B&H after-tax: gains taxed throughout (not just the end)", midUp>0 && tqAT[midUp]<tqbh[midUp]);
 
 // signal mode: fewer rebalances than daily; 100%TQQQ signal == B&H
 const dailyN=E.runBacktest(DATA,{...base,rebalance:"daily"}).stats.rebalCount;
