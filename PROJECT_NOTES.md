@@ -43,6 +43,11 @@ and trades on Alpaca **paper** money.
 - Whipsaw filter: if `whipsaw` and (ADX<adxThresh and/or ER<erThresh, per `whipsawDetector`) → whole engine → TLT.
 - Rebalance modes: weekly / monthly / daily / **signal**. Signal mode trades only when total weight
   drift > `rebalanceBand`%. **This band is now honored live too** (was a backtest-only bug).
+- Tax model (after-tax view, taxable account): the **strategy** realizes short/long-term gains on each
+  rebalance (mostly short-term when rebalancing weekly). The **TQQQ / QQQ buy-&-hold baselines** are one lot,
+  shown as the after-tax *liquidation value at every point* — short-term while held <1yr, long-term after
+  (`engine.js: buyHoldAfterTax(eq, dates, p)`). Final value / CAGR unchanged; "Total taxes paid" = the single
+  terminal sale. Display/metrics only — no live-trading impact.
 
 ## Backtest ↔ live parity guarantee
 Two implementations are kept identical: `engine.js` (backtest) and `check_signal.py` (live).
