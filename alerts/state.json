@@ -1,30 +1,30 @@
 {
   "strategies": {
     "AfterTax85TQQQ83Rebalance": {
-      "asof": "2026-07-29",
-      "state": "Bear Entry",
-      "score": 0.4,
+      "asof": "2026-07-30",
+      "state": "Full Crash",
+      "score": 0.7,
       "target": {
-        "tqqq": 0.51,
-        "sqqq": 0.34,
+        "tqqq": 0.2431,
+        "sqqq": 0.6069,
         "jepq": 0.15,
         "tlt": 0.0
       },
-      "breakdown": "trend BELOW 50d SMA \u00b7 vol 60% \u00b7 RSI 32 \u00b7 ADX 28 \u00b7 ER 0.68 \u00b7 VIX 21",
-      "updated": "2026-07-29T21:33:19.043409Z"
+      "breakdown": "trend BELOW 50d SMA \u00b7 vol 70% \u00b7 RSI 41 \u00b7 ADX 29 \u00b7 ER 0.28 \u00b7 VIX 17",
+      "updated": "2026-07-30T20:48:01.388825Z"
     },
     "85TQQQ10Rebalance": {
-      "asof": "2026-07-29",
-      "state": "Bear Entry",
-      "score": 0.4,
+      "asof": "2026-07-30",
+      "state": "Full Crash",
+      "score": 0.7,
       "target": {
-        "tqqq": 0.51,
-        "sqqq": 0.34,
+        "tqqq": 0.2431,
+        "sqqq": 0.6069,
         "jepq": 0.15,
         "tlt": 0.0
       },
-      "breakdown": "trend BELOW 50d SMA \u00b7 vol 60% \u00b7 RSI 32 \u00b7 ADX 28 \u00b7 ER 0.68 \u00b7 VIX 21",
-      "updated": "2026-07-29T21:33:19.073848Z"
+      "breakdown": "trend BELOW 50d SMA \u00b7 vol 70% \u00b7 RSI 41 \u00b7 ADX 29 \u00b7 ER 0.28 \u00b7 VIX 17",
+      "updated": "2026-07-30T20:48:03.322605Z"
     }
   },
   "alertConfigSig": "3a009fb8d88d0394b568e701a5d8af98"
