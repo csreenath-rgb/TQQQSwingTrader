@@ -10,8 +10,8 @@
         "jepq": 0.15,
         "tlt": 0.0
       },
-      "breakdown": "trend above 50d SMA \u00b7 vol 73% \u00b7 RSI 56 \u00b7 ADX 18 \u00b7 ER 0.67 \u00b7 VIX 14",
-      "updated": "2026-08-12T20:24:41.343363Z"
+      "breakdown": "trend above 50d SMA \u00b7 vol 73% \u00b7 RSI 56 \u00b7 ADX 18 \u00b7 ER 0.67 \u00b7 VIX 15",
+      "updated": "2026-08-12T21:25:18.080325Z"
     },
     "85TQQQ10Rebalance": {
       "asof": "2026-08-12",
@@ -23,8 +23,8 @@
         "jepq": 0.15,
         "tlt": 0.0
       },
-      "breakdown": "trend above 50d SMA \u00b7 vol 73% \u00b7 RSI 56 \u00b7 ADX 18 \u00b7 ER 0.67 \u00b7 VIX 14",
-      "updated": "2026-08-12T20:24:43.628163Z"
+      "breakdown": "trend above 50d SMA \u00b7 vol 73% \u00b7 RSI 56 \u00b7 ADX 18 \u00b7 ER 0.67 \u00b7 VIX 15",
+      "updated": "2026-08-12T21:25:18.110731Z"
     }
   },
   "alertConfigSig": "3a009fb8d88d0394b568e701a5d8af98"
