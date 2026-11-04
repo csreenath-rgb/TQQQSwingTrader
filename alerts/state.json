@@ -11,7 +11,7 @@
         "tlt": 0.0
       },
       "breakdown": "trend BELOW 50d SMA \u00b7 vol 66% \u00b7 RSI 34 \u00b7 ADX 31 \u00b7 ER 0.34 \u00b7 VIX 21",
-      "updated": "2026-11-04T00:12:35.976528Z"
+      "updated": "2026-11-04T00:52:29.522036Z"
     },
     "85TQQQ10Rebalance": {
       "asof": "2026-11-03",
@@ -24,7 +24,7 @@
         "tlt": 0.0
       },
       "breakdown": "trend BELOW 50d SMA \u00b7 vol 66% \u00b7 RSI 34 \u00b7 ADX 31 \u00b7 ER 0.34 \u00b7 VIX 21",
-      "updated": "2026-11-04T00:12:36.007127Z"
+      "updated": "2026-11-04T00:52:29.545669Z"
     }
   },
   "alertConfigSig": "3a009fb8d88d0394b568e701a5d8af98"
