@@ -1,30 +1,30 @@
 {
   "strategies": {
     "AfterTax85TQQQ83Rebalance": {
-      "asof": "2026-11-04",
-      "state": "Full Crash",
-      "score": 0.7,
+      "asof": "2026-11-05",
+      "state": "Bull Run",
+      "score": 0.0,
       "target": {
-        "tqqq": 0.2431,
-        "sqqq": 0.6069,
+        "tqqq": 0.85,
+        "sqqq": 0.0,
         "jepq": 0.15,
         "tlt": 0.0
       },
-      "breakdown": "trend BELOW 50d SMA \u00b7 vol 67% \u00b7 RSI 37 \u00b7 ADX 31 \u00b7 ER 0.37 \u00b7 VIX 17",
-      "updated": "2026-11-05T00:32:40.319526Z"
+      "breakdown": "trend BELOW 50d SMA \u00b7 vol 90% \u00b7 RSI 27 \u00b7 ADX 33 \u00b7 ER 0.47 \u00b7 VIX 28 \u00b7 OVERSOLD-VETO",
+      "updated": "2026-11-06T00:33:52.914641Z"
     },
     "85TQQQ10Rebalance": {
-      "asof": "2026-11-04",
-      "state": "Full Crash",
-      "score": 0.7,
+      "asof": "2026-11-05",
+      "state": "Bull Run",
+      "score": 0.0,
       "target": {
-        "tqqq": 0.2431,
-        "sqqq": 0.6069,
+        "tqqq": 0.85,
+        "sqqq": 0.0,
         "jepq": 0.15,
         "tlt": 0.0
       },
-      "breakdown": "trend BELOW 50d SMA \u00b7 vol 67% \u00b7 RSI 37 \u00b7 ADX 31 \u00b7 ER 0.37 \u00b7 VIX 17",
-      "updated": "2026-11-05T00:32:40.345242Z"
+      "breakdown": "trend BELOW 50d SMA \u00b7 vol 90% \u00b7 RSI 27 \u00b7 ADX 33 \u00b7 ER 0.47 \u00b7 VIX 28 \u00b7 OVERSOLD-VETO",
+      "updated": "2026-11-06T00:33:55.029423Z"
     }
   },
   "alertConfigSig": "3a009fb8d88d0394b568e701a5d8af98"
